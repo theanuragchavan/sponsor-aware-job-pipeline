@@ -1,0 +1,22 @@
+@echo off
+REM Wrapper for Windows Task Scheduler - runs the tracker unattended.
+REM
+REM Copy to run_tracker.bat and edit the two paths for your machine. The real
+REM file is gitignored because both paths are machine-specific.
+REM
+REM Task Scheduler inherits neither your PATH nor your CWD, so:
+REM   - cd /d to the project explicitly
+REM   - use a FULLY-QUALIFIED interpreter path. A bare `python` resolves to
+REM     whatever is first on PATH, which is easily a venv missing openpyxl; the
+REM     run then dies at import with no obvious cause.
+
+cd /d "C:\path\to\this\repo"
+"C:\path\to\python.exe" main.py
+
+REM Morning briefing: turn the refreshed tracker into today's ranked shortlist.
+REM Read-only over the store; writes pipeline\shortlists\<date>-shortlist.md.
+REM --verify-live checks each candidate is still listed. Adzuna serves HTTP 410
+REM Gone once an ad is pulled, so a stale link can otherwise sit at the top of
+REM the briefing for weeks. Verdicts are cached, so the daily cost is only the
+REM handful of ids that are new that morning.
+"C:\path\to\python.exe" pipeline\shortlist.py --top 10 --write --verify-live

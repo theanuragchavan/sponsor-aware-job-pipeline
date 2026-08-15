@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# Secrets — never commit
+# ---------------------------------------------------------------------------
+.env
+.env*
+
+# ---------------------------------------------------------------------------
+# PERSONAL DATA — this repo is public and this is a real job search.
+# The code is the project; the job hunt is not. None of the following is
+# reconstructable from what is committed, which is the point.
+# ---------------------------------------------------------------------------
+jobs_tracker_beautified.xlsx
+jobs_tracker.csv
+*.LOCKED-*.xlsx
+data/jobs_tracker_backup_*.xlsx
+pipeline/decisions.json
+pipeline/sponsor_review.md
+pipeline/shortlists/
+pipeline/profile.md
+data/sponsor_aliases.json
+
+# Machine-specific: hardcoded interpreter path and project root.
+# run_tracker.bat.example is committed in its place.
+run_tracker.bat
+
+# Personal working context, absolute paths, and status notes
+CLAUDE.md
+STATUS_*.md
+adzuna_tracker_brief.md
+compass_artifact_*.md
+.claude/
+job-search-kit/
+
+# ---------------------------------------------------------------------------
+# Regenerable state and caches. The register is 10.9 MB and gov.uk republishes
+# it under a new dated filename most days, so committing it would be both large
+# and immediately stale — sponsor_check.py fetches the current one.
+# ---------------------------------------------------------------------------
+data/sponsors_register.csv
+data/sponsors_register_meta.json
+data/call_counter.json
+data/ats_call_counter.json
+data/ats_closed.json
+pipeline/liveness_cache.json
+logs/
+
+# ---------------------------------------------------------------------------
+# Python / OS
+# ---------------------------------------------------------------------------
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.stackdump

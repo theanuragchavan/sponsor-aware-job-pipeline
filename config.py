@@ -122,6 +122,15 @@ RECRUITER_COMPANIES = [   # matched as case-insensitive substrings
     "transparency technology", "franklin fitch", "adecco", "randstad",
     "manpower", "experis", "lorien", "sthree", "huxley", "opus recruitment",
     "information tech consultants", "rullion",
+    # Merged in from a second list that pipeline/shortlist.py kept privately
+    # (2026-08-15). Two lists meant two answers to the same question: Salt was
+    # an agency to the shortlist and not to the review queue, so recruiters kept
+    # appearing in the queue for sponsor confirmation. One list, one answer.
+    "salt", "oliver james", "source group international", "la fosse",
+    "oho group", "trust in soda", "client server", "xcede",
+    "darwin recruitment", "circle group", "in technology group",
+    "computer futures", "progressive", "sanderson", "networking people",
+    "people first", "qurated", "mthree",
 ]
 
 # 1b) Positive role gate. The tier keyword searches drag construction/admin

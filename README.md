@@ -60,6 +60,19 @@ fallback, and caches for seven days.
 stripped, a leading `THE` dropped, and trailing legal-form tokens
 (`LTD`/`LIMITED`/`PLC`/`LLP`) peeled off.
 
+**Eligibility gates, not just relevance.** A ranking that surfaces jobs you
+cannot legally take is worse than a shorter one. Roles gated on UK security
+clearance are dropped, because SC normally requires five continuous years of UK
+residency and DV considerably more. So are internships and apprenticeships,
+which carry their own graduation-year and right-to-work rules. On the current
+store that removes 125 postings which were otherwise scoring near the top.
+
+Postings that merely *mention* clearance are flagged rather than dropped. One
+London role says "you may need to be eligible for Developed Vetting because of
+the nature of the work we do with our Government clients", which describes some
+of that company's work and not necessarily the advertised job. 187 rows mention
+clearance somewhere in their text; dropping on that would bin most of the board.
+
 **A suggester that proposes and never decides.** Two deterministic rules:
 
 - *Prefix at a word boundary*: `AMENTUM` matches `AMENTUM UK`, but not
@@ -163,10 +176,12 @@ row. The slug is the last path segment of their careers URL.
   means the organisation holds a licence, not that this specific role is open to
   sponsorship. Agency listings match the *agency's* licence, which tells you
   nothing about the end employer, so they are filtered out of the shortlist.
-- **The alias overlay is designed but barely used.** The review queue currently
-  has 45 companies waiting on a human decision and `sponsor_aliases.json` does
-  not exist yet, so the 74-company gap above is still mostly open. The mechanism
-  works; nobody has sat down and worked the queue.
+- **The review queue is never empty.** 29 aliases have been confirmed by hand so
+  far, which moved 90 rows from "cannot sponsor" to "can", and took the number
+  of sponsor-confirmed employers from 130 to 190. Another 51 companies are still
+  waiting on a decision, 15 of them with software roles. Every new employer that
+  enters the store under an unfamiliar name adds another, so this is a standing
+  chore rather than a task that finishes.
 - **The store is a spreadsheet.** Deliberately: it is edited by hand constantly,
   and a human-editable store beats a tidier one nobody opens. Hand edits
   round-trip through a regeneration, which is what `test_tracker_roundtrip.py`

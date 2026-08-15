@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.join(ROOT, "pipeline"))
 
 import liveness  # noqa: E402
 import shortlist  # noqa: E402
+import tracker  # noqa: E402
 
 
 def _row(jid="1", title="Solutions Engineer", company="Northwind Systems",
@@ -214,6 +215,67 @@ def test_existing_adzuna_cache_entries_still_resolve():
     cache = {"5775689205": {"verdict": liveness.DEAD,
                             "checked": datetime.now().isoformat(timespec="seconds")}}
     assert liveness.cached_verdict(cache, "5775689205") == liveness.DEAD
+
+
+# --- eligibility gates ------------------------------------------------------
+# Added 2026-08-15. Six of the shortlist's own top fourteen were roles that
+# would auto-reject: four gated on UK security clearance, two internships
+# requiring a later graduation year. The ranking looked excellent and was
+# unusable.
+
+def test_clearance_titles_are_dropped():
+    """SC normally needs five continuous years of UK residency; DV more."""
+    for title in ("Forward Deployed Software Engineer - UK Government",
+                  "Forward Deployed Software Engineer - NATO",
+                  "Software Engineer - eDV",
+                  "Platform Engineer (SC Cleared)",
+                  "Developer, Developed Vetting required"):
+        reason = shortlist.disqualify(_row(title=title), max_age=None)
+        assert reason and "clearance" in reason, f"{title!r} -> {reason!r}"
+
+
+def test_internships_and_apprenticeships_are_dropped():
+    """A 2026 graduate is not eligible: Palantir's London internships require
+    graduating in 2028, and UK apprenticeships need existing right to work."""
+    for title in ("Software Engineer, Internship",
+                  "Forward Deployed Software Engineer, Internship - Commercial",
+                  "Digital and Technology Solutions Apprenticeship Level 6",
+                  "Graduate Placement Programme"):
+        reason = shortlist.disqualify(_row(title=title), max_age=None)
+        assert reason, f"{title!r} was not dropped"
+
+
+def test_ordinary_roles_survive_both_gates():
+    """The gates must not swallow the jobs they exist to make room for."""
+    for title in ("Forward Deployed Software Engineer, New Grad - Commercial",
+                  "Associate Solution Engineer",
+                  "Graduate Software Engineer",
+                  "Machine Learning Engineer"):
+        assert shortlist.disqualify(_row(title=title), max_age=None) is None, title
+
+
+def test_clearance_hint_flags_but_never_drops():
+    """Faculty's Forward Deployed Engineer says "you may need to be eligible
+    for UK Developed Vetting" because of *some* of their government work. 187
+    rows mention clearance somewhere in their text; dropping on that would bin
+    most of the board. Flag it, keep it, let a human read the posting."""
+    desc = ("Because of the nature of the work we do with our Government "
+            "clients, you may need to be eligible for UK Developed Vetting "
+            "(DV) and willing to work on site.")
+    row = _row(title="Forward Deployed Engineer", description=desc)
+    assert shortlist.disqualify(row, max_age=None) is None, "must not drop"
+    assert shortlist.CLEARANCE_HINT.search(desc), "must flag"
+
+
+def test_one_definition_of_an_agency():
+    """This module used to keep a private KNOWN_AGENCIES set that disagreed
+    with the config-driven one, so Salt was an agency to the shortlist and not
+    to the sponsor review queue. The queue kept asking for human decisions on
+    recruitment firms."""
+    for name in ("Salt", "Sanderson", "Oliver James", "Hays", "Robert Walters"):
+        assert shortlist.is_agency(name) is tracker.is_agency(name) is True, name
+    for name in ("Palantir", "Monzo", "Snowflake"):
+        assert shortlist.is_agency(name) is tracker.is_agency(name) is False, name
 
 
 # --- runner -----------------------------------------------------------------

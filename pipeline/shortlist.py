@@ -46,7 +46,8 @@ for _stream in (sys.stdout, sys.stderr):
 
 ADZUNA_HOME = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ADZUNA_HOME))
-import tracker  # noqa: E402 — needs ADZUNA_HOME on the path first
+import config  # noqa: E402 — needs ADZUNA_HOME on the path first
+import tracker  # noqa: E402
 
 # The store, not the legacy CSV. `jobs_tracker.csv` froze on 2026-07-01 at 286
 # rows; reading it meant every morning briefing re-scanned a stale snapshot and
@@ -67,34 +68,52 @@ SENIORITY = re.compile(
     r"expert|specialist\s+iv|iii\b|\biv\b|10\+|[5-9]\+\s*years)\b",
     re.IGNORECASE,
 )
+# Clearance markers that appear in a TITLE. These are hard blocks: UK SC
+# clearance normally requires five continuous years of UK residency and DV
+# considerably more, so a role gated on either is closed to a recent arrival
+# regardless of how good the fit is. "UK Government" and "NATO" are included
+# because, on this data, every such posting turned out to carry a clearance
+# requirement in the body even when the stored description was too short to
+# show it.
 CLEARANCE = re.compile(
-    r"\b(sc[\s-]?cleared|dv[\s-]?cleared|security\s+clearance|"
-    r"must\s+be\s+a?\s*british|uk\s+national(s)?\s+only|nppv|mod\b)\b",
+    r"\b(sc[\s-]?cleared|dv[\s-]?cleared|e?dv\b|security\s+clearance|"
+    r"security[\s-]?cleared|developed\s+vetting|"
+    r"must\s+be\s+a?\s*british|uk\s+national(s)?\s+only|nppv|mod\b|"
+    r"uk\s+government|nato)\b",
     re.IGNORECASE,
 )
-# Agency/consultancy listings hide the real employer, so their sponsor-register
-# match is meaningless — the agency is licensed, not the hiring company.
-AGENCY_WORDS = re.compile(
-    r"\b(recruit\w*|talent|resourcing|staffing|search\s*&?\s*selection|"
-    r"associates|consultan\w+|headhunt\w*|manpower|personnel)\b",
+
+# Softer signal, matched against the DESCRIPTION rather than the title. Phrases
+# like "you may need to be eligible for DV" describe some of a company's work,
+# not this specific role: Faculty's Forward Deployed Engineer carries exactly
+# that wording and is otherwise a strong fit. 187 rows mention clearance
+# somewhere in their text, so dropping on this would bin most of the board.
+# Flag it instead and let a human read the posting.
+CLEARANCE_HINT = re.compile(
+    r"(may\s+need\s+to\s+be\s+eligible|eligible\s+for\s+(uk\s+)?(sc|dv|"
+    r"developed\s+vetting|security\s+clearance)|willing\s+to\s+undergo)",
     re.IGNORECASE,
 )
-KNOWN_AGENCIES = {
-    "robert walters", "oliver james associates", "source group international",
-    "hays", "michael page", "reed", "adecco", "randstad", "harnham",
-    "nigel frank", "understanding recruitment", "la fosse", "oho group",
-    "trust in soda", "salt", "lorien", "spectrum it", "client server",
-    "opus recruitment solutions", "xcede", "darwin recruitment", "noir",
-    "tenth revolution group", "circle group", "in technology group",
-    "experis", "sthree", "computer futures", "huxley", "progressive",
-}
+
+# Internships, placements and apprenticeships. A 2026 graduate is not eligible:
+# Palantir's London internships require graduating in 2028, and UK
+# apprenticeships require existing right to work. Reuses the list already in
+# config so this rule has one home.
+EARLY_BLOCK = re.compile(
+    r"\b(" + "|".join(re.escape(t) for t in getattr(config, "APPLY_BLOCK_TERMS", [])) + r")\b",
+    re.IGNORECASE,
+) if getattr(config, "APPLY_BLOCK_TERMS", None) else None
 
 
 def is_agency(company: str) -> bool:
-    c = (company or "").strip().lower()
-    if c in KNOWN_AGENCIES:
-        return True
-    return bool(AGENCY_WORDS.search(c))
+    """Delegates to tracker so there is exactly one definition of an agency.
+
+    This module used to keep its own KNOWN_AGENCIES set, which disagreed with
+    the config-driven one: Salt was an agency here and not there, so the sponsor
+    review queue kept asking for human decisions on recruitment firms. Both
+    lists are now merged into config.RECRUITER_COMPANIES.
+    """
+    return tracker.is_agency(company)
 
 
 # The tracker's `tier` column is assigned by keyword and is demonstrably
@@ -164,6 +183,8 @@ def disqualify(row: dict, max_age: int | None = None) -> str | None:
         return "seniority title — early-career profile"
     if CLEARANCE.search(title):
         return "security clearance / nationality requirement"
+    if EARLY_BLOCK and EARLY_BLOCK.search(title):
+        return "internship/apprenticeship — needs a later graduation year"
     if (row.get("sponsor_match", "") or "").strip().lower() != "yes":
         return "no sponsor-register match"
     if NON_TECH.search(title):
@@ -403,6 +424,8 @@ def main() -> int:
               f"  | tier {row.get('tier','?')}"
               f" | sponsor {row.get('sponsor_rating','-')}")
         print(f"       {', '.join(why)}")
+        if CLEARANCE_HINT.search(row.get("description", "") or ""):
+            print("       ! posting mentions clearance eligibility — read it before applying")
         if str(row.get("id", "")) in unknown_ids:
             print("       ? could not verify it is still listed — check the link")
         if ruling:
@@ -439,6 +462,10 @@ def main() -> int:
                 f"{row.get('tier','?')} | Sponsor: {row.get('sponsor_rating','-')}"
                 + (f" | Posted: {age}d ago" if age is not None else ""),
             ]
+            if CLEARANCE_HINT.search(row.get("description", "") or ""):
+                lines.append("- ⚠️ The posting mentions clearance eligibility. "
+                             "Read it before applying: SC normally needs five "
+                             "years' UK residency and DV considerably more.")
             if str(row.get("id", "")) in unknown_ids:
                 lines.append("- ⚠️ Could not verify this ad is still listed.")
             if ruling:

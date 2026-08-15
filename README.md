@@ -9,7 +9,7 @@ different places.
 ## The problem
 
 If you need a UK Skilled Worker visa, a job you cannot legally take is worse
-than no job at all — it looks like an opportunity and costs you an application.
+than no job at all. It looks like an opportunity and costs you an application.
 So every posting has to be checked against the Home Office register of licensed
 sponsors before it is worth reading.
 
@@ -30,9 +30,8 @@ the brand at all. Get it wrong in one direction and you apply to a company that
 cannot hire you. Get it wrong in the other and you never see a job you could
 have taken.
 
-**Measured on real data: 74 of 492 employers that this pipeline had scored "not
-a sponsor" plausibly *are* sponsors under a different legal name.** That is the
-cost of naive exact matching, and it is the problem this repo exists to solve.
+Measured on real data: **74 of 492 employers that this pipeline had scored "not
+a sponsor" plausibly *are* sponsors under a different legal name.**
 
 ---
 
@@ -50,7 +49,7 @@ Lever      ─┘                     │                 │
 **Two independent ingestion families.** An aggregator API, plus **47 employer
 job boards** pulled directly from Greenhouse, Ashby and Lever. Direct boards
 give the employer's own apply URL, the full description, and a real application
-deadline — none of which an aggregator provides.
+deadline, none of which an aggregator provides.
 
 **A register that moves.** gov.uk republishes the sponsor CSV under a new dated
 filename most days, so no URL can be hardcoded. `sponsor_check.py` resolves the
@@ -59,13 +58,13 @@ fallback, and caches for seven days.
 
 **Name normalisation before matching.** Uppercase, `&` → `AND`, punctuation
 stripped, a leading `THE` dropped, and trailing legal-form tokens
-(`LTD`/`LIMITED`/`PLC`/`LLP`/…) peeled off.
+(`LTD`/`LIMITED`/`PLC`/`LLP`) peeled off.
 
 **A suggester that proposes and never decides.** Two deterministic rules:
 
-- *Prefix at a word boundary* — `AMENTUM` matches `AMENTUM UK`, but not
+- *Prefix at a word boundary*: `AMENTUM` matches `AMENTUM UK`, but not
   `AMENTUMX`. Without the boundary this silently becomes a substring rule.
-- *Trading-as* — `DELIVEROO` matches `ROOFOODS LTD T A DELIVEROO`.
+- *Trading-as*: `DELIVEROO` matches `ROOFOODS LTD T A DELIVEROO`.
 
 Everything it finds goes to a human. Confirmed decisions land in an alias
 overlay that lives outside the store, so rebuilding the data can never destroy a
@@ -85,7 +84,7 @@ above replaced it.
 
 **A 410 means the listing is gone, not the job.** Delisted ads return HTTP 410
 Gone; live ones return 200. But an aggregator listing expiring says nothing
-about whether the employer is still hiring — so a dead link demotes the row and
+about whether the employer is still hiring, so a dead link demotes the row and
 points at the employer's own careers page rather than discarding the role.
 
 **Liveness fails open.** A probe that errors returns `UNKNOWN`, and `UNKNOWN`
@@ -95,7 +94,8 @@ a live one is invisible and unbounded.
 **Age is a guess; a 410 is a fact.** An age cut-off applied *before* the network
 check binned a genuinely open role at 47 days. The proxy now stands down
 whenever the real check can run. Rows from employer boards skip the age gate
-entirely — presence in a successful feed is direct evidence the role is open.
+entirely, because presence in a successful feed is direct evidence the role is
+open.
 
 **Direct probing gets you IP-blocked.** Five quick requests and the aggregator
 returns 403 to everything afterwards, including URLs that answered 200 seconds
@@ -116,7 +116,7 @@ and stamps `createdAt` as **epoch milliseconds as an integer**, which a naive
 python tests/run_all.py
 ```
 
-75 assertions across four modules, all runnable offline — fixtures are literal
+75 assertions across four modules, all runnable offline. Fixtures are literal
 payloads captured from live responses, so no test needs a network or a key.
 
 `tests/run_all.py` exists because `unittest discover` reported *"Ran 0 tests"*
@@ -151,18 +151,22 @@ python pipeline/sponsor_review.py                    # queue of names to confirm
 ```
 
 `data/ats_boards.csv` is the curated board registry. Adding an employer is one
-row — the slug is the last path segment of their careers URL.
+row. The slug is the last path segment of their careers URL.
 
 ---
 
-## What this does not do
+## What this does not do, and what is still broken
 
 - **It does not apply to anything.** Ranking and filtering only; every
   submission is manual and deliberate.
 - **The sponsor flag is a starting point, not a verdict.** A register match
   means the organisation holds a licence, not that this specific role is open to
   sponsorship. Agency listings match the *agency's* licence, which tells you
-  nothing about the end employer — so they are filtered out of the shortlist.
+  nothing about the end employer, so they are filtered out of the shortlist.
+- **The alias overlay is designed but barely used.** The review queue currently
+  has 45 companies waiting on a human decision and `sponsor_aliases.json` does
+  not exist yet, so the 74-company gap above is still mostly open. The mechanism
+  works; nobody has sat down and worked the queue.
 - **The store is a spreadsheet.** Deliberately: it is edited by hand constantly,
   and a human-editable store beats a tidier one nobody opens. Hand edits
   round-trip through a regeneration, which is what `test_tracker_roundtrip.py`
@@ -170,6 +174,10 @@ row — the slug is the last path segment of their careers URL.
 - **Employer-board ingestion is not on the schedule.** The merge is insert-only
   and never revisits an id, so a mapping bug would have to be undone by hand.
   It runs manually until the drop table has been boring for a week.
+- **There is a logging bug in `main.py`** that throws a `TypeError` on every
+  scheduled run, because one tier is a string and the format string expects an
+  integer. It does not affect the data. It has also been there for weeks, which
+  is its own kind of finding.
 
-Personal data — the actual tracker, shortlists and triage decisions — is not in
+Personal data (the tracker itself, shortlists, and triage decisions) is not in
 this repository.

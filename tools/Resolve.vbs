@@ -78,19 +78,30 @@ If Not running Then
     End If
 End If
 
-' Open in app mode: a standalone window with no address bar, whether or not the
-' PWA has been installed. If it has, Windows will route to the installed app.
-Dim edge, chrome, url
-url    = "http://" & HOST & ":" & PORT & "/app"   ' the tool, not the landing
-edge   = shell.ExpandEnvironmentStrings("%ProgramFiles(x86)%") & _
-         "\Microsoft\Edge\Application\msedge.exe"
-chrome = shell.ExpandEnvironmentStrings("%ProgramFiles%") & _
-         "\Google\Chrome\Application\chrome.exe"
+' Open in app mode: a standalone window with no address bar.
+'
+' Chrome first, and a named profile, because this machine has eight of them
+' across four Google accounts. Without --profile-directory Chrome picks
+' whichever was last active, so the app would open somewhere different
+' depending on what you happened to be doing, which is the opposite of an app
+' icon behaving predictably.
+'
+' "Profile 8" is the "Ai Tools" profile (anuragchavan21102@gmail.com). To
+' change it: chrome://version in the profile you want, read the Profile Path,
+' and put the last folder name below.
+Dim chrome, edge, url, profile
+url     = "http://" & HOST & ":" & PORT & "/app"   ' the tool, not the landing
+profile = "Profile 8"
+chrome  = shell.ExpandEnvironmentStrings("%ProgramFiles%") & _
+          "\Google\Chrome\Application\chrome.exe"
+edge    = shell.ExpandEnvironmentStrings("%ProgramFiles(x86)%") & _
+          "\Microsoft\Edge\Application\msedge.exe"
 
-If fso.FileExists(edge) Then
+If fso.FileExists(chrome) Then
+    shell.Run """" & chrome & """ --profile-directory=""" & profile & _
+              """ --app=" & url, 1, False
+ElseIf fso.FileExists(edge) Then
     shell.Run """" & edge & """ --app=" & url, 1, False
-ElseIf fso.FileExists(chrome) Then
-    shell.Run """" & chrome & """ --app=" & url, 1, False
 Else
     shell.Run url, 1, False        ' fall back to the default browser
 End If

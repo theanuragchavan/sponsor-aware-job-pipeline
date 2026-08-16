@@ -374,12 +374,24 @@ def summary() -> dict:
     to do it there is not.
     """
     rows = list(store.rows().values())
-    applied, ready, blocked, no_sponsor = [], [], 0, 0
+
+    # "Applied" means an application was actually sent. It does NOT mean "has
+    # some status": the first version counted anything not equal to "new",
+    # which reported a single job marked `ignored` as an application. Being
+    # told you have applied to something you have not is worse than showing
+    # nothing, because you would stop chasing it.
+    SENT = ("applied", "screening", "interview", "offer")
+    DECLINED = ("ignored", "rejected", "closed")
+
+    applied, ready, blocked, no_sponsor, not_interested = [], [], 0, 0, 0
 
     for row in rows:
         status = (row.get("status") or "").strip().lower()
-        if status and status != tracker.DEFAULT_STATUS:
+        if status in SENT:
             applied.append(row)
+            continue
+        if status in DECLINED:
+            not_interested += 1
             continue
         if shortlist.disqualify(row, max_age=None) is not None:
             blocked += 1
@@ -388,6 +400,8 @@ def summary() -> dict:
             continue
         ready.append(row)
 
+    # Only "applied" is genuinely waiting. Once it reaches screening or
+    # interview somebody has already replied.
     waiting = sum(1 for r in applied
                   if (r.get("status") or "").strip().lower() == "applied")
     return {
@@ -397,6 +411,7 @@ def summary() -> dict:
         "awaiting_reply": waiting,
         "filtered_out": blocked,
         "filtered_no_sponsor": no_sponsor,
+        "not_interested": not_interested,
         "needs_a_name_decision": len(views.review_queue(rows, registry)),
     }
 

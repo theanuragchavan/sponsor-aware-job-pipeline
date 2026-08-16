@@ -20,8 +20,8 @@ type Filter = { q: string; status: string; sponsor: string; eligible: string };
 
 const EMPTY: Filter = { q: "", status: "", sponsor: "", eligible: "true" };
 
-export function Jobs() {
-  const [filter, setFilter] = useState<Filter>(EMPTY);
+export function Jobs({ initial }: { initial?: Partial<Filter> }) {
+  const [filter, setFilter] = useState<Filter>({ ...EMPTY, ...initial });
   const [openId, setOpenId] = useState<string | null>(null);
 
   const query = new URLSearchParams({ limit: "150", sort: "score" });

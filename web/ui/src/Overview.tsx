@@ -15,7 +15,10 @@ import { ApiError, api } from "./api";
 import type { Job } from "./api";
 import { Button, Empty, Panel, Pill, ServerDown } from "./components";
 
-export function Overview({ onOpenQueue }: { onOpenQueue: () => void }) {
+export function Overview({ onOpenQueue, onOpenJobs }: {
+  onOpenQueue: () => void;
+  onOpenJobs: (filter: { status?: string; eligible?: string }) => void;
+}) {
   const summary = useQuery({ queryKey: ["summary"], queryFn: api.summary });
   const ready = useQuery({
     queryKey: ["jobs", "ready"],
@@ -41,13 +44,16 @@ export function Overview({ onOpenQueue }: { onOpenQueue: () => void }) {
       <div className="grid gap-3"
            style={{ gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))" }}>
         <Figure label="You can apply to" value={s?.ready_to_apply}
-                tone="accent" hint="passed every check" />
+                tone="accent" hint="passed every check"
+                onClick={() => onOpenJobs({ eligible: "true", status: "new" })} />
         <Figure label="You've applied to" value={s?.applied}
-                hint={s ? `${s.awaiting_reply} waiting to hear back` : ""} />
+                hint={s ? `${s.awaiting_reply} waiting to hear back` : ""}
+                onClick={() => onOpenJobs({ status: "applied", eligible: "" })} />
         <Figure label="Names to check" value={s?.needs_a_name_decision}
-                hint="unlocks more jobs" />
+                hint="unlocks more jobs" onClick={onOpenQueue} />
         <Figure label="Jobs tracked" value={s?.tracked}
-                hint={s ? `${s.filtered_out.toLocaleString()} filtered out` : ""} />
+                hint={s ? `${s.filtered_out.toLocaleString()} filtered out` : ""}
+                onClick={() => onOpenJobs({ eligible: "", status: "" })} />
       </div>
 
       {s && s.filtered_no_sponsor > 0 && (
@@ -108,13 +114,23 @@ export function Overview({ onOpenQueue }: { onOpenQueue: () => void }) {
   );
 }
 
-function Figure({ label, value, hint, tone }: {
+/**
+ * A number, and the list behind it.
+ *
+ * These read as buttons — a big figure in a bordered card — so they have to
+ * behave like buttons. Rendering them as inert divs was a small lie the eye
+ * tells you, and the first thing anyone does with a dashboard tile is click it.
+ */
+function Figure({ label, value, hint, tone, onClick }: {
   label: string; value?: number; hint?: string; tone?: "accent";
+  onClick?: () => void;
 }) {
   return (
-    <div className="rounded-xl px-4 py-3"
-         style={{ background: "var(--bg-raised)",
-                  border: `1px solid ${tone === "accent" ? "var(--accent)" : "var(--border)"}` }}>
+    <button onClick={onClick} disabled={!onClick}
+            className="rounded-xl px-4 py-3 text-left transition-colors
+                       disabled:cursor-default hover:brightness-110"
+            style={{ background: "var(--bg-raised)",
+                     border: `1px solid ${tone === "accent" ? "var(--accent)" : "var(--border)"}` }}>
       <div className="text-[11px] uppercase tracking-wider"
            style={{ color: "var(--text-faint)" }}>{label}</div>
       <div className="text-2xl tnum leading-tight"
@@ -123,7 +139,7 @@ function Figure({ label, value, hint, tone }: {
       </div>
       {hint && <div className="text-[11px]"
                     style={{ color: "var(--text-faint)" }}>{hint}</div>}
-    </div>
+    </button>
   );
 }
 

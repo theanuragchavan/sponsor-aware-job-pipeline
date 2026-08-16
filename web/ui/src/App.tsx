@@ -49,6 +49,7 @@ function Shell() {
   // morning is "what should I apply to". Numbers belong beside the work, not
   // in front of it.
   const [tab, setTab] = useState<"overview" | "jobs" | "queue">("jobs");
+  const [jobFilter, setJobFilter] = useState<{ status?: string; eligible?: string }>({});
 
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const review = useQuery({ queryKey: ["review"], queryFn: api.review });
@@ -116,9 +117,12 @@ function Shell() {
           "pick a company on the left" while the left is an error — which reads
           as three unrelated problems instead of one. */}
       {tab === "overview" ? (
-        <main className="flex-1"><Overview onOpenQueue={() => setTab("queue")} /></main>
+        <main className="flex-1"><Overview
+          onOpenQueue={() => setTab("queue")}
+          onOpenJobs={(f) => { setJobFilter(f); setTab("jobs"); }} /></main>
       ) : tab === "jobs" ? (
-        <main className="flex-1 flex"><Jobs /></main>
+        <main className="flex-1 flex"><Jobs key={JSON.stringify(jobFilter)}
+                                          initial={jobFilter} /></main>
       ) : review.isError ? (
         <main className="flex-1 p-4">
           <div className="max-w-xl mx-auto mt-12">

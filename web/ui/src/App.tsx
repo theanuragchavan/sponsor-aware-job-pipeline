@@ -10,7 +10,7 @@ import { useState } from "react";
 import { api } from "./api";
 import type { LogEntry, ReviewItem } from "./api";
 import { DecisionPanel } from "./DecisionPanel";
-import { Empty, Panel, Pill, Stat, ThemeToggle, useTheme } from "./components";
+import { Empty, Panel, Pill, ServerDown, Stat, ThemeToggle, useTheme } from "./components";
 
 const qc = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
@@ -72,13 +72,23 @@ function Shell() {
         </div>
       </header>
 
+      {/* When the API is unreachable the whole page says so, once. Leaving the
+          three-column layout up means two panels cheerfully invite you to
+          "pick a company on the left" while the left is an error — which reads
+          as three unrelated problems instead of one. */}
+      {review.isError ? (
+        <main className="flex-1 p-4">
+          <div className="max-w-xl mx-auto mt-12">
+            <Panel title="Not connected"><ServerDown /></Panel>
+          </div>
+        </main>
+      ) : (
       <main className="flex-1 grid gap-4 p-4"
             style={{ gridTemplateColumns: "minmax(260px,1fr) minmax(380px,1.4fr) minmax(280px,1fr)" }}>
 
         <Panel title="Awaiting a decision"
                right={<Pill>{items.length}</Pill>}>
           {review.isLoading && <Empty>Loading…</Empty>}
-          {review.isError && <Empty>API not reachable. Is uvicorn running?</Empty>}
           {review.data?.length === 0 && <Empty>Queue is empty.</Empty>}
           <div className="max-h-[calc(100vh-160px)] overflow-y-auto">
             {items.map((item) => (
@@ -130,6 +140,7 @@ function Shell() {
           )}
         </div>
       </main>
+      )}
     </div>
   );
 }

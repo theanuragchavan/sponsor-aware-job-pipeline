@@ -170,6 +170,44 @@ export function Panel({ title, right, children }: {
   );
 }
 
+/**
+ * What you see when the API is down.
+ *
+ * The previous version said "API not reachable. Is uvicorn running?" — true,
+ * and useless. The one moment someone sees this screen is the moment they least
+ * want to go hunting for the command, so it is on the page with a copy button.
+ */
+export function ServerDown() {
+  const [copied, setCopied] = useState(false);
+  const cmd =
+    'cd /d D:\\Adzuna && python -m uvicorn web.api.app:app --port 8000';
+
+  return (
+    <div className="px-5 py-8 flex flex-col gap-3 items-start">
+      <span className="text-[13px] font-medium">The server isn’t running.</span>
+      <span className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+        Nothing is wrong with your data — this window is just a view onto it.
+        Your 9am tracker run is a separate scheduled task and is unaffected.
+      </span>
+      <div className="w-full flex items-stretch gap-2">
+        <code className="flex-1 px-3 py-2 rounded-lg text-[11.5px] overflow-x-auto
+                         whitespace-nowrap"
+              style={{ background: "var(--bg-sunken)",
+                       border: "1px solid var(--border)" }}>{cmd}</code>
+        <Button onClick={() => {
+          navigator.clipboard?.writeText(cmd).then(
+            () => { setCopied(true); setTimeout(() => setCopied(false), 1600); },
+            () => undefined);
+        }}>{copied ? "Copied" : "Copy"}</Button>
+      </div>
+      <span className="text-[11px]" style={{ color: "var(--text-faint)" }}>
+        Or double-click <span className="mono">tools\Resolve.vbs</span>, which
+        starts it and opens this window for you.
+      </span>
+    </div>
+  );
+}
+
 export function Empty({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-4 py-10 text-center text-[13px]"

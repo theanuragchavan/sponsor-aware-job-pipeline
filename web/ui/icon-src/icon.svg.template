@@ -1,0 +1,30 @@
+<!--
+  The Resolve mark: two names on the left resolving into one entity on the right.
+
+  That is literally what the product does — a job board prints "Monzo", the
+  register records "MONZO BANK", and a human decides they are the same employer.
+  The mark is the same statement.
+
+  Kept to four shapes and two weights so it survives a 24px taskbar. Anything
+  finer turns to mush at that size, and the taskbar is where it will mostly be
+  seen.
+
+  {{FG}} / {{BG}} are substituted per build variant: blue for the local install
+  (real data), amber for the demo (synthetic). Two identical icons where one
+  writes a real job tracker and one writes fixtures is a mistake waiting to
+  happen, so they must never look alike.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="{{BG}}"/>
+
+  <!-- the two unresolved names -->
+  <circle cx="150" cy="176" r="42" fill="none" stroke="{{FG}}" stroke-width="26" opacity="0.75"/>
+  <circle cx="150" cy="336" r="42" fill="none" stroke="{{FG}}" stroke-width="26" opacity="0.75"/>
+
+  <!-- converging into one -->
+  <path d="M196 190 L316 244 M196 322 L316 268"
+        stroke="{{FG}}" stroke-width="26" stroke-linecap="round" fill="none" opacity="0.75"/>
+
+  <!-- the resolved entity, solid because a decision was made -->
+  <circle cx="368" cy="256" r="62" fill="{{FG}}"/>
+</svg>

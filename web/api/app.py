@@ -48,6 +48,40 @@ app.add_middleware(
     allow_headers=["*"])
 
 
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def manifest() -> JSONResponse:
+    """Served, not static, so the install differs by APP_MODE.
+
+    Two identical icons where one writes a real job tracker and one writes
+    fixtures is a mistake waiting to happen — the local install is blue and
+    called "Resolve", the demo is amber and called "Resolve Demo". This is a
+    safety property, not decoration.
+    """
+    demo = settings.is_demo
+    variant = "demo" if demo else "local"
+    return JSONResponse(
+        {
+            "id": f"/?mode={variant}",
+            "name": "Resolve Demo" if demo else "Resolve",
+            "short_name": "Resolve Demo" if demo else "Resolve",
+            "description": ("Synthetic demo of the sponsor-aware job pipeline."
+                            if demo else
+                            "Employer identity across the UK sponsor register."),
+            "start_url": "/app" if demo else "/",
+            "scope": "/",
+            "display": "standalone",
+            "background_color": "#E0AA4A" if demo else "#2F6AE0",
+            "theme_color": "#E0AA4A" if demo else "#2F6AE0",
+            "icons": [
+                {"src": f"/icons/icon-{variant}.svg", "sizes": "any",
+                 "type": "image/svg+xml", "purpose": "any"},
+                {"src": f"/icons/icon-{variant}.svg", "sizes": "any",
+                 "type": "image/svg+xml", "purpose": "maskable"},
+            ],
+        },
+        media_type="application/manifest+json")
+
+
 def _mount_ui() -> None:
     """Serve the built front end from this same service, if it has been built.
 

@@ -20,6 +20,7 @@ from . import bootstrap  # noqa: F401
 from . import views
 from .actions import ActionError, Actions
 from .audit import DecisionLog
+from .demo_reset import DemoReset
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, Meta, ResolveCompanyRequest, ReviewItem)
 from .registry import Registry
@@ -34,6 +35,11 @@ registry = Registry(settings.register_csv, settings.aliases_path,
                     settings.rejections_path)
 log = DecisionLog(settings.decision_log_path, settings.max_log_entries)
 actions = Actions(store, registry, log, settings)
+
+# Only ever constructed in demo mode. A snapshot restored over a local instance
+# would overwrite the real tracker and destroy real decisions, so DemoReset
+# refuses to construct without it and this refuses to build one.
+demo_reset = DemoReset(settings, store, registry, log) if settings.is_demo else None
 
 app = FastAPI(
     title="Resolve",
@@ -146,6 +152,26 @@ def _warm() -> None:
     """
     store.rows()
     registry.lookup
+    if demo_reset is not None:
+        # Before the server accepts connections, so the snapshot is the image's
+        # data and not some early visitor's decisions. Get this order wrong and
+        # every later "reset" faithfully restores their work instead.
+        n = demo_reset.capture()
+        print(f"demo snapshot captured: {n} files, "
+              f"resetting every {demo_reset.interval // 3600}h")
+
+
+@app.middleware("http")
+async def _demo_housekeeping(request: Request, call_next):
+    """Restore the demo on a timer.
+
+    Driven by traffic rather than a background thread: a thread would have to
+    be reaped on shutdown and would fire on an idle instance for no one's
+    benefit. Nobody visiting means nothing to tidy.
+    """
+    if demo_reset is not None:
+        demo_reset.maybe_reset()
+    return await call_next(request)
 
 
 @app.exception_handler(ActionError)
@@ -201,7 +227,11 @@ def meta() -> Meta:
                  "aliases": len(registry.aliases_raw)},
         register_info={"entries": len(registry.lookup),
                        "route": sponsor_check.SKILLED_WORKER_ROUTE},
-        capabilities={"liveness": False, "writeback": True})
+        capabilities={"liveness": False, "writeback": True},
+        demo_reset=({"every_hours": demo_reset.interval // 3600,
+                     "next_in_seconds": demo_reset.seconds_until_due(),
+                     "resets_so_far": demo_reset.resets}
+                    if demo_reset is not None else None))
 
 
 @app.get("/api/jobs", response_model=JobPage)

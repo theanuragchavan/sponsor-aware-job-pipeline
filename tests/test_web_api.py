@@ -28,6 +28,7 @@ import tracker  # noqa: E402
 
 from web.api.actions import ActionError, Actions  # noqa: E402
 from web.api.audit import DecisionLog  # noqa: E402
+from web.api.demo_reset import DemoReset  # noqa: E402
 from web.api.registry import Registry  # noqa: E402
 from web.api.settings import Settings  # noqa: E402
 from web.api.store import StoreLockedError, TrackerStore  # noqa: E402
@@ -350,6 +351,76 @@ def test_demo_settings_never_point_at_the_real_store():
     for path in (demo.tracker_path, demo.aliases_path, demo.rejections_path,
                  demo.decision_log_path):
         assert "demo" in str(path).lower(), path
+
+
+# --- the demo reset ---------------------------------------------------------
+# The demo is writable on purpose and nothing put it back once keep-warm stopped
+# it sleeping. These pin the three ways a periodic restore could go wrong, and
+# the first is the one that matters: pointed at a local instance it would
+# overwrite the real tracker and destroy real decisions.
+
+def _demo_env(*rows):
+    """Same isolated world, but flagged as demo so DemoReset will construct."""
+    actions, store, log, registry, tmp = _env(*rows)
+    demo = Settings(**{**actions.settings.__dict__, "mode": "demo"})
+    actions.settings = demo
+    return actions, store, log, registry, demo, tmp
+
+
+def test_reset_refuses_to_construct_outside_demo_mode():
+    """The unrecoverable mistake. A snapshot restored over a local instance
+    overwrites the real workbook, and there is no undo for that."""
+    actions, store, log, registry, _tmp = _env(_row("1"))
+    assert actions.settings.mode == "local"
+    try:
+        DemoReset(actions.settings, store, registry, log)
+    except ValueError as exc:
+        assert "demo" in str(exc).lower()
+        return
+    raise AssertionError("DemoReset constructed against a local instance")
+
+
+def test_reset_restores_the_snapshot_and_forgets_the_decision():
+    actions, store, log, registry, settings, _tmp = _demo_env(_row("1"))
+    reset = DemoReset(settings, store, registry, log, interval_seconds=0)
+    assert reset.capture() >= 1
+
+    _resolve(actions)
+    assert store.rows()["1"]["sponsor_match"] == "yes"
+    assert len(log.entries()) == 1
+
+    assert reset.reset(force=True) is True
+    assert store.rows()["1"]["sponsor_match"] == "no", "workbook not restored"
+    assert log.entries() == [], "decision log not restored"
+    assert registry.aliases_raw == {}, "alias overlay not restored"
+
+
+def test_reset_does_not_fire_before_its_interval():
+    """Otherwise every request wipes the demo and no visitor sees their own
+    decision land, which is the one thing they came to see."""
+    actions, store, log, registry, settings, _tmp = _demo_env(_row("1"))
+    reset = DemoReset(settings, store, registry, log, interval_seconds=3600)
+    reset.capture()
+
+    _resolve(actions)
+    reset.maybe_reset()
+    assert store.rows()["1"]["sponsor_match"] == "yes", "reset fired too early"
+    assert reset.resets == 0
+
+
+def test_capture_before_writes_is_what_makes_reset_meaningful():
+    """Snapshotting after a visitor has acted pins THEIR decisions as the
+    pristine state, and every later reset faithfully restores their work. This
+    is why capture() runs in the startup hook, before the port is accepting."""
+    actions, store, log, registry, settings, _tmp = _demo_env(_row("1"))
+    _resolve(actions)                       # a visitor got in first
+
+    late = DemoReset(settings, store, registry, log, interval_seconds=0)
+    late.capture()
+    late.reset(force=True)
+    assert store.rows()["1"]["sponsor_match"] == "yes", (
+        "a late snapshot restores the visitor's decision -- correct behaviour "
+        "for this object, which is exactly why the caller must capture early")
 
 
 # --- single-service routing -------------------------------------------------

@@ -118,6 +118,7 @@ class Meta(BaseModel):
     register_info: dict[str, Any] = Field(serialization_alias="register",
                                           validation_alias="register")
     capabilities: dict[str, bool]
+    demo_reset: dict[str, Any] | None = None
 
     model_config = {"populate_by_name": True}
 

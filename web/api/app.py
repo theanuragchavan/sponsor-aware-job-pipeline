@@ -50,7 +50,7 @@ actions = Actions(store, registry, log, settings)
 demo_reset = DemoReset(settings, store, registry, log) if settings.is_demo else None
 
 app = FastAPI(
-    title="Resolve",
+    title="Get That Job",
     description="A decision surface over the sponsor-aware job pipeline.",
     version="0.1.0")
 
@@ -76,8 +76,8 @@ def manifest() -> JSONResponse:
     return JSONResponse(
         {
             "id": f"/?mode={variant}",
-            "name": "Resolve Demo" if demo else "Resolve",
-            "short_name": "Resolve Demo" if demo else "Resolve",
+            "name": "Resolve Demo" if demo else "Get That Job",
+            "short_name": "Resolve Demo" if demo else "Get That Job",
             "description": ("Synthetic demo of the sponsor-aware job pipeline."
                             if demo else
                             "Employer identity across the UK sponsor register."),

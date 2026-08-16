@@ -70,7 +70,7 @@ function Shell() {
               style={{ borderBottom: "1px solid var(--border)",
                        background: "var(--bg-raised)" }}>
         <div className="flex items-baseline gap-3">
-          <h1 className="text-[15px] font-semibold tracking-tight">Resolve</h1>
+          <h1 className="text-[15px] font-semibold tracking-tight">Get That Job</h1>
           {/* The local instance is his job site. The deployed one is a portfolio
               piece about entity resolution. Same code, and the subtitle is the
               cheapest way to stop it reading as the wrong product. */}

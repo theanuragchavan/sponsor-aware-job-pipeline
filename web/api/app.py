@@ -121,9 +121,28 @@ def _mount_ui() -> None:
         inspecting `response.status_code` silently never fires.
         """
 
+        @staticmethod
+        def _cache(response, path: str):
+            """Two rules, and getting them the wrong way round is a real bug.
+
+            `index.html` names the hashed bundle for THIS build, so a browser
+            that caches it keeps loading yesterday's app and no amount of
+            rebuilding helps — the fix looks like "press ctrl-shift-R forever",
+            which is not a fix. It must revalidate every load.
+
+            `/assets/*` is content-hashed by Vite: a changed file gets a changed
+            name, so those can be cached hard and effectively forever.
+            """
+            if path.startswith("assets/") or path.startswith("assets\\"):
+                response.headers["cache-control"] = \
+                    "public, max-age=31536000, immutable"
+            else:
+                response.headers["cache-control"] = "no-cache"
+            return response
+
         async def get_response(self, path: str, scope):
             try:
-                return await super().get_response(path, scope)
+                return self._cache(await super().get_response(path, scope), path)
             except StarletteHTTPException as exc:
                 if exc.status_code != 404:
                     raise
@@ -140,7 +159,9 @@ def _mount_ui() -> None:
                 head = path.replace("\\", "/").split("/", 1)[0]
                 if head == "api":
                     raise
-                return await super().get_response("index.html", scope)
+                return self._cache(
+                    await super().get_response("index.html", scope),
+                    "index.html")
 
     app.mount("/", SpaFiles(directory=str(dist), html=True), name="ui")
 

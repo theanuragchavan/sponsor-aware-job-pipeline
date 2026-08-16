@@ -66,6 +66,7 @@ def candidates(rows, lookup, aliases):
     names in alphabetical order and every one costs the same attention.
     """
     index = sponsor_check.build_name_index(lookup)
+    ta_index = sponsor_check.build_trading_index(lookup)
     by_company = {}
     for row in rows:
         company = (row.get("company") or "").strip()
@@ -84,7 +85,7 @@ def candidates(rows, lookup, aliases):
         if sponsor_check.normalize_name(company) in aliases:
             continue        # already decided
         seen.add(company)
-        hits = sponsor_check.suggest_matches(company, lookup, index)
+        hits = sponsor_check.suggest_matches(company, lookup, index, ta_index)
         if not hits:
             continue
 

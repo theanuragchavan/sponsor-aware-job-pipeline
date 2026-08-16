@@ -107,7 +107,17 @@ def _cache_is_fresh():
 
 
 def ensure_register(force=False):
-    """Download + cache the register if missing/stale. Returns the CSV path."""
+    """Download + cache the register if missing/stale. Returns the CSV path.
+
+    SPONSOR_REGISTER_CSV pins an explicit local file and short-circuits every
+    network path, including `force`. Two callers need that: the deployed demo,
+    which must not pull 10.9 MB from gov.uk on a cold start, and the tests,
+    which are offline by construction rather than by hope.
+    """
+    override = os.getenv("SPONSOR_REGISTER_CSV")
+    if override:
+        return override
+
     os.makedirs(DATA_DIR, exist_ok=True)
     if not force and _cache_is_fresh():
         logger.info("Sponsor register cache is fresh — skipping download.")
@@ -260,7 +270,26 @@ def build_name_index(lookup):
     return index
 
 
-def suggest_matches(company, lookup, index=None, limit=3):
+def build_trading_index(lookup):
+    """Index trading-as entries by the first token after ' T A '.
+
+    {'DELIVEROO': ['ROOFOODS LTD T A DELIVEROO', ...]}
+
+    Sibling of build_name_index, and it exists for the same reason. The prefix
+    rule has been indexed since it was written; the trading-as rule was still
+    scanning all 121k keys per company, which is 3.5 million regex searches
+    across ~900 companies and 6.8 of the 7 seconds sponsor_review spends.
+    """
+    index = {}
+    for key in lookup:
+        _, sep, tail = key.partition(" T A ")
+        if not sep or not tail:
+            continue
+        index.setdefault(tail.partition(" ")[0], []).append(key)
+    return index
+
+
+def suggest_matches(company, lookup, index=None, ta_index=None, limit=3):
     """Register entries that plausibly ARE this company.
 
     Returns [(register_key, rating, why)] — candidates for a human to confirm,
@@ -289,18 +318,24 @@ def suggest_matches(company, lookup, index=None, limit=3):
 
     if index is None:
         index = build_name_index(lookup)
+    if ta_index is None:
+        ta_index = build_trading_index(lookup)
+
+    first = key.split(" ")[0]
 
     out = []
     prefix_re = re.compile(r"^%s\b" % re.escape(key))
-    for candidate in index.get(key.split(" ")[0], []):
+    for candidate in index.get(first, []):
         if prefix_re.match(candidate):
             out.append((candidate, lookup[candidate], "prefix"))
             if len(out) >= limit:
                 return out
 
+    # Only entries whose trading name starts with the same token can satisfy
+    # `\bT A <key>\b`, so the index is a filter, not a different rule.
     trading_re = re.compile(r"\bT A %s\b" % re.escape(key))
-    for candidate in lookup:
-        if " T A " in candidate and trading_re.search(candidate):
+    for candidate in ta_index.get(first, []):
+        if trading_re.search(candidate):
             out.append((candidate, lookup[candidate], "trading-as"))
             if len(out) >= limit:
                 break

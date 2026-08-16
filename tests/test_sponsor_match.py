@@ -19,6 +19,7 @@ that matters most — that rescoring never touches a hand-edited column.
 Run:  python tests/test_sponsor_match.py
 """
 import json
+import re
 import os
 import sys
 import tempfile
@@ -57,6 +58,66 @@ def test_trading_as_entity_is_found():
     """The register hides Deliveroo inside 'ROOFOODS LTD T A DELIVEROO'."""
     assert _suggest("Deliveroo") == [
         ("ROOFOODS LTD T A DELIVEROO", "A", "trading-as")]
+
+
+def test_trading_index_does_not_change_what_is_suggested():
+    """The trading-as index is a filter, not a different rule.
+
+    Added 2026-08-15 with the index itself. The trading-as rule used to scan all
+    121k register keys per company — 3.5 million regex searches across ~900
+    companies, 6.8 of the 7 seconds `sponsor_review.candidates()` took, which is
+    far too slow to serve a request. Indexing by the first token after ' T A '
+    cuts it 178x.
+
+    The risk in that change is not slowness, it is a silently NARROWER rule: an
+    index that misses a bucket drops a real suggestion and nobody notices,
+    because a missing suggestion looks exactly like "no match found". So pin the
+    equivalence directly rather than trusting the speedup.
+
+    The reference below is the pre-index linear scan, reproduced in full. It
+    must NOT be `suggest_matches` with `ta_index` left None: that path builds its
+    index with the very function under test, so a broken index breaks both sides
+    equally and the comparison passes against a mutant. That is the same trap
+    `test_prefix_must_end_on_a_word_boundary` fell into, one function below.
+    """
+    def reference(company, limit=3):
+        key = sponsor_check.normalize_name(company)
+        if len(key) < 4 or key in LOOKUP:
+            return []
+        out = []
+        prefix_re = re.compile(r"^%s\b" % re.escape(key))
+        for cand in INDEX.get(key.split(" ")[0], []):
+            if prefix_re.match(cand):
+                out.append((cand, LOOKUP[cand], "prefix"))
+                if len(out) >= limit:
+                    return out
+        trading_re = re.compile(r"\bT A %s\b" % re.escape(key))
+        for cand in LOOKUP:                      # the old full scan
+            if " T A " in cand and trading_re.search(cand):
+                out.append((cand, LOOKUP[cand], "trading-as"))
+                if len(out) >= limit:
+                    break
+        return out[:limit]
+
+    ta = sponsor_check.build_trading_index(LOOKUP)
+    for name in ("Deliveroo", "Monzo", "Amazon", "Amentum", "Booth Welsh",
+                 "Syntasso", "Nearform", "Roofoods", "Wise", "Catalyst"):
+        assert (sponsor_check.suggest_matches(name, LOOKUP, INDEX, ta)
+                == reference(name)), name
+
+
+def test_trading_index_buckets_on_the_trading_name_not_the_legal_entity():
+    """Deliveroo must be reachable under DELIVEROO, not under ROOFOODS.
+
+    Bucketing on the first token of the whole key is the obvious mistake, and it
+    would break the one rule this index exists to serve — the register records
+    ROOFOODS, the job ad says Deliveroo, and the whole point is to bridge them.
+    """
+    ta = sponsor_check.build_trading_index(LOOKUP)
+    assert ta.get("DELIVEROO") == ["ROOFOODS LTD T A DELIVEROO"]
+    assert "ROOFOODS" not in ta
+    # Entries with no trading-as clause must not appear at all.
+    assert "MONZO" not in ta
 
 
 def test_prefix_must_end_on_a_word_boundary():

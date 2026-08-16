@@ -234,8 +234,8 @@ function DemoBanner() {
       <div className="flex items-center justify-between gap-4">
         <span>
           <strong>Synthetic data.</strong> These companies do not exist and this
-          is not the Home Office register. Your changes are real but reset when
-          the instance sleeps.
+          is not the Home Office register. Your decisions are real, shared with
+          everyone else here, and cleared whenever the demo restarts.
         </span>
         <button onClick={() => setOpen(!open)}
                 className="underline underline-offset-2 shrink-0">

@@ -11,8 +11,8 @@
  * has a deadline, so both would be controls that mostly do nothing.
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { ApiError, STATUSES, api } from "./api";
+import { useEffect, useState } from "react";
+import { ApiError, api } from "./api";
 import { Button, Empty, Panel, Pill, ServerDown } from "./components";
 
 type Filter = { q: string; status: string; sponsor: string; eligible: string };
@@ -41,7 +41,21 @@ export function Jobs() {
   }
 
   const items = jobs.data?.items ?? [];
-  const current = items.find((j) => j.id === openId) ?? items[0] ?? null;
+
+  // Pin the selection to an explicit id as soon as there is one.
+  //
+  // Falling back to items[0] on every render looks harmless and is not: the
+  // list refetches after any status change, and if the order shifts, the detail
+  // pane silently swaps to a different job while you are looking at it. The
+  // next button you press then applies to a job you never chose. That is almost
+  // certainly how an "ignored" landed on a role nobody meant to ignore.
+  useEffect(() => {
+    if (!openId && items.length) setOpenId(items[0].id);
+  }, [openId, items]);
+
+  // Never fall back to items[0] once something is selected. If the current job
+  // drops out of the filtered list, show nothing rather than quietly retarget.
+  const current = openId ? items.find((j) => j.id === openId) ?? null : null;
 
   return (
     <div className="flex-1 grid gap-4 p-4"
@@ -110,7 +124,7 @@ export function Jobs() {
         </div>
       </Panel>
 
-      <JobDetail id={current?.id ?? null} />
+      <JobDetail id={current?.id ?? openId} />
     </div>
   );
 }
@@ -194,12 +208,30 @@ function JobDetail({ id }: { id: string | null }) {
         )}
 
         <Field label="Status">
+          {/* Two groups, because they are two different things and having them
+              in one undifferentiated row is how "ignored" gets clicked when
+              "interview" was meant. The first row is progress; the second is
+              the ways it ends. */}
           <div className="flex flex-wrap gap-1.5 items-center">
-            {STATUSES.filter((s) => s !== "new").map((s) => (
+            {(["applied", "screening", "interview", "offer"] as const).map((s) => (
               <Button key={s} variant={j.status === s ? "primary" : "ghost"}
                       disabled={move.isPending || j.status === s}
                       onClick={() => move.mutate(s)}>{s}</Button>
             ))}
+          </div>
+          <div className="flex flex-wrap gap-1.5 items-center mt-1.5">
+            {(["rejected", "ignored", "closed"] as const).map((s) => (
+              <Button key={s} variant={j.status === s ? "danger" : "ghost"}
+                      disabled={move.isPending || j.status === s}
+                      onClick={() => move.mutate(s)}>{s}</Button>
+            ))}
+            {/* The way back. Without this a mis-click is permanent from inside
+                the app, which is exactly what happened the first time someone
+                used it. */}
+            {j.status !== "new" && j.status !== "" && (
+              <Button disabled={move.isPending}
+                      onClick={() => move.mutate("new")}>↩ undo — back to new</Button>
+            )}
           </div>
           {j.date_applied && (
             <div className="text-[11.5px] mt-1.5" style={{ color: "var(--text-faint)" }}>

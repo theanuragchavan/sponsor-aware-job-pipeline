@@ -62,3 +62,4 @@ venv/
 web/ui/node_modules/
 web/ui/dist/
 .vercel
+data/contacts.json

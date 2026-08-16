@@ -14,6 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ApiError, api } from "./api";
 import { Button, Empty, Panel, Pill, ServerDown } from "./components";
+import { Referrals } from "./Referrals";
 
 type Filter = { q: string; status: string; sponsor: string; eligible: string };
 
@@ -249,6 +250,8 @@ function JobDetail({ id }: { id: string | null }) {
             Open the posting ↗
           </a>
         )}
+
+        <Referrals company={j.company} jobId={j.id} />
 
         {j.notes && <Field label="Your notes">
           <p className="text-[12.5px] whitespace-pre-wrap"

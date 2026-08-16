@@ -21,6 +21,8 @@ from . import bootstrap  # noqa: F401
 from . import views
 from .actions import ActionError, Actions
 from .audit import DecisionLog
+from .contacts import Contacts
+from .referrals import github as gh_referrals, linkedin as li_referrals
 from .demo_reset import DemoReset
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, LogApplicationRequest, Meta,
@@ -39,6 +41,7 @@ store = TrackerStore(settings.tracker_path)
 registry = Registry(settings.register_csv, settings.aliases_path,
                     settings.rejections_path)
 log = DecisionLog(settings.decision_log_path, settings.max_log_entries)
+contacts = Contacts(settings.contacts_path)
 actions = Actions(store, registry, log, settings)
 
 # Only ever constructed in demo mode. A snapshot restored over a local instance
@@ -419,6 +422,51 @@ def set_status(body: SetStatusRequest,
                who: tuple[str, str] = Depends(actor)) -> ActionResponse:
     return ActionResponse(**actions.set_status(
         **body.model_dump(), actor_id=who[0], actor_name=who[1]).as_dict())
+
+
+@app.get("/api/referrals/{company}")
+def referrals(company: str, contributors: bool = False) -> dict:
+    """Who might refer you into this company.
+
+    Three groups, deliberately not merged. GitHub gives real people but only
+    those who made org membership public; LinkedIn gives the alumni and language
+    signals GitHub cannot, but only as searches HE runs; saved contacts are what
+    he has already found. Presenting them as one ranked list would imply an
+    equivalence that is not there.
+    """
+    try:
+        found = gh_referrals.people_at(company, include_contributors=contributors)
+    except gh_referrals.GitHubUnavailable as exc:
+        found = {"org": None, "people": [], "error": str(exc)}
+    return {
+        "company": company,
+        "github": found,
+        "linkedin_searches": li_referrals.searches_for(company),
+        "saved": contacts.for_company(company),
+    }
+
+
+@app.post("/api/contacts")
+def save_contact(body: dict) -> dict:
+    return contacts.upsert(
+        company=body.get("company", ""), name=body.get("name", ""),
+        source=body.get("source", "manual"), handle=body.get("handle", ""),
+        url=body.get("url", ""), location=body.get("location", ""),
+        signals=body.get("signals") or [], job_id=body.get("job_id", ""),
+        notes=body.get("notes", ""))
+
+
+@app.post("/api/contacts/{contact_id}/status")
+def set_contact_status(contact_id: str, body: dict) -> dict:
+    status = (body.get("status") or "").strip().lower()
+    from .contacts import STATUSES
+    if status not in STATUSES:
+        raise ActionError("unknown_status",
+                          f"One of: {', '.join(STATUSES)}.")
+    row = contacts.set_status(contact_id, status, body.get("note", ""))
+    if row is None:
+        raise ActionError("not_found", f"No contact {contact_id!r}.")
+    return row
 
 
 @app.get("/api/follow-ups")

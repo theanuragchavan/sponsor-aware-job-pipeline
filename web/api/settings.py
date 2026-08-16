@@ -23,6 +23,7 @@ class Settings:
     aliases_path: Path
     rejections_path: Path
     decision_log_path: Path
+    contacts_path: Path
     register_csv: Path | None  # None -> the real cached/downloaded register
     actor_id: str
     actor_name: str
@@ -53,6 +54,7 @@ def load_settings() -> Settings:
             aliases_path=base / "demo_aliases.json",
             rejections_path=base / "demo_rejections.json",
             decision_log_path=base / "demo_decision_log.jsonl",
+            contacts_path=base / "demo_contacts.json",
             register_csv=base / "demo_register.csv",
             actor_id="visitor",
             actor_name="Demo visitor",
@@ -69,6 +71,7 @@ def load_settings() -> Settings:
         aliases_path=data / "sponsor_aliases.json",
         rejections_path=data / "sponsor_rejections.json",
         decision_log_path=data / "decision_log.jsonl",
+        contacts_path=data / "contacts.json",
         register_csv=(Path(os.environ["SPONSOR_REGISTER_CSV"])
                       if os.getenv("SPONSOR_REGISTER_CSV") else None),
         actor_id=os.getenv("ACTOR_ID", "anurag"),

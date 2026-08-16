@@ -116,6 +116,34 @@ export type FollowUp = {
   date_applied: string; days: number | null; applied_via: string;
 };
 
+export type Signal = { key: string; label: string };
+
+export type Person = {
+  login: string; name: string; location: string; bio: string; blog: string;
+  url: string; relationship: "member" | "contributor";
+  contributions: number; score: number; signals: Signal[];
+};
+
+export type LinkedInSearch = {
+  key: string; label: string; why: string; url: string;
+};
+
+export type SavedContact = {
+  id: string; company: string; name: string; source: string; handle: string;
+  url: string; location: string; signals: string[]; status: string;
+  job_ids: string[]; notes: string; found_on: string; contacted_on: string;
+};
+
+export type Referrals = {
+  company: string;
+  github: { org: string | null; people: Person[]; error?: string };
+  linkedin_searches: LinkedInSearch[];
+  saved: SavedContact[];
+};
+
+export const CONTACT_STATUSES = ["found", "contacted", "replied",
+                                 "referred", "declined"] as const;
+
 export const STATUSES = ["new", "applied", "screening", "interview",
                          "offer", "rejected", "ignored", "closed"] as const;
 
@@ -201,6 +229,12 @@ export const api = {
   jobs: (q: string) => call<JobPage>(`/jobs?${q}`),
   job: (id: string) => call<JobDetail>(`/jobs/${encodeURIComponent(id)}`),
   followUps: (days = 10) => call<FollowUp[]>(`/follow-ups?after_days=${days}`),
+  referrals: (company: string) =>
+    call<Referrals>(`/referrals/${encodeURIComponent(company)}`),
+  saveContact: (input: Record<string, unknown>) =>
+    post<SavedContact>("/contacts", input),
+  setContactStatus: (id: string, status: string, note = "") =>
+    post<SavedContact>(`/contacts/${id}/status`, { status, note }),
   setStatus: (input: { job_id: string; status: string; note?: string;
                        action_id?: string }) =>
     post<ActionResponse>("/actions/set-status", input),

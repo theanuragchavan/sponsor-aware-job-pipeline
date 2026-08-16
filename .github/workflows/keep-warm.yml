@@ -1,0 +1,46 @@
+# Keep the free Render instance awake.
+#
+# Render's free tier spins a service down after ~15 minutes idle, and the next
+# request pays a ~40 second cold start while the container boots and the app
+# loads the workbook and the 121k-entry register. For a link on a CV that is the
+# difference between someone looking at it and someone closing the tab.
+#
+# The free allowance is 750 instance-hours a month and a month is about 730, so
+# one always-on service fits inside the documented allowance. The trade-off is
+# real and worth stating: this consumes essentially all of it, so a second free
+# service would not fit.
+#
+# Two things that will bite eventually:
+#   - GitHub disables scheduled workflows on a repository with no activity for
+#     60 days. It emails first. Re-enable it in the Actions tab.
+#   - Scheduled runs are best-effort and are often minutes late under load.
+#     Harmless here; the point is "roughly every 10 minutes", not punctuality.
+name: keep-warm
+
+on:
+  schedule:
+    - cron: "7,17,27,37,47,57 * * * *"   # off the :00 mark on purpose
+  workflow_dispatch:                      # so it can be poked by hand
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        env:
+          # Set this to the Render URL once the service exists:
+          # Settings -> Secrets and variables -> Actions -> New repository secret
+          URL: ${{ secrets.RENDER_URL }}
+        run: |
+          if [ -z "$URL" ]; then
+            echo "RENDER_URL secret is not set yet — nothing to ping."
+            exit 0
+          fi
+          # --max-time generously: a cold start is the case this exists for, so
+          # a slow reply is a success, not a failure.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 90 "$URL/api/health")
+          echo "GET $URL/api/health -> $code"
+          # Don't fail the workflow on a bad response. A red X every 10 minutes
+          # trains you to ignore the notification, and this job is not the thing
+          # that should be telling you the service is down.
+          [ "$code" = "200" ] || echo "::warning::health check returned $code"

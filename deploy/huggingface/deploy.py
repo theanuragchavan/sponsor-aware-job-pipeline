@@ -2,6 +2,18 @@
 
     HF_TOKEN=hf_xxx python deploy/huggingface/deploy.py --space anurag/resolve
 
+**This needs a PRO subscription and will 402 without one.** Checked 2026-08-16;
+the API says it plainly:
+
+    "Static Spaces are free for everyone, but hosting Gradio and Docker Spaces
+     on free cpu-basic requires a PRO subscription."
+
+A static Space is not a substitute — the whole point of this app is the Python
+action layer that validates a decision, writes it back and records it, and a
+client-side rewrite would remove exactly the part worth showing. Render is what
+this actually deploys to (see render.yaml); this script is kept because it works
+and is one subscription away from being useful.
+
 Why a script rather than a `git push`: the Space needs a README.md carrying YAML
 frontmatter (`sdk: docker`, `app_port`), and the repository README is the
 portfolio piece. Putting Space config at the top of it would leave a block of

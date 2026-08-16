@@ -296,7 +296,7 @@ def _sort_key(r):
     return (confirmed, london, -_as_int(r.get("salary_max")))
 
 
-def save_tracker(path, rows_by_id):
+def save_tracker(path, rows_by_id, *, on_lock="sidefile"):
     """Write {id: row} to the beautified .xlsx store, sponsor+London first.
 
     File-lock-safe: writes to a temp file then atomically replaces the store, so
@@ -304,11 +304,24 @@ def save_tracker(path, rows_by_id):
     holds an exclusive lock -> PermissionError), this run is written to a
     timestamped side file and a loud warning is logged instead of the run
     crashing and losing the day's new jobs.
+
+    `on_lock` picks what a locked store means to the caller:
+
+      "sidefile"  (default) the behaviour above — right for the unattended 09:00
+                  run, where losing the day's ingest is worse than writing
+                  somewhere odd.
+      "raise"     re-raise the PermissionError — right for anything interactive.
+                  A side file nothing ever reads back is the worst possible
+                  outcome for a user who just clicked a button: they get a
+                  success, and the change is gone. The caller shows "close Excel
+                  and retry" instead.
     """
     ordered = sorted(rows_by_id.values(), key=_sort_key)
     try:
         _atomic_write(path, ordered)
     except PermissionError:
+        if on_lock == "raise":
+            raise
         stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         base, ext = os.path.splitext(path)
         fallback = f"{base}.LOCKED-{stamp}{ext}"

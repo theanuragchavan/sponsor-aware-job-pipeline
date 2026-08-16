@@ -44,7 +44,11 @@ function Shell() {
   const [selected, setSelected] = useState<string | null>(null);
   // Two screens, one piece of state. A router would buy shareable URLs for an
   // app one person opens from an icon, at the cost of another dependency.
-  const [tab, setTab] = useState<"overview" | "jobs" | "queue">("overview");
+  // Opens on the job search. The summary screen was the front door and it was
+  // the wrong one: it answers "how is my search going" when the question every
+  // morning is "what should I apply to". Numbers belong beside the work, not
+  // in front of it.
+  const [tab, setTab] = useState<"overview" | "jobs" | "queue">("jobs");
 
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const review = useQuery({ queryKey: ["review"], queryFn: api.review });
@@ -66,8 +70,13 @@ function Shell() {
                        background: "var(--bg-raised)" }}>
         <div className="flex items-baseline gap-3">
           <h1 className="text-[15px] font-semibold tracking-tight">Resolve</h1>
+          {/* The local instance is his job site. The deployed one is a portfolio
+              piece about entity resolution. Same code, and the subtitle is the
+              cheapest way to stop it reading as the wrong product. */}
           <span className="text-[12px]" style={{ color: "var(--text-faint)" }}>
-            employer identity across four sources
+            {meta.data?.mode === "demo"
+              ? "employer identity across four sources"
+              : "jobs you can actually take, and what happened to each"}
           </span>
         </div>
 
@@ -87,11 +96,11 @@ function Shell() {
           <div className="flex rounded-lg p-0.5 gap-0.5"
                style={{ background: "var(--bg-sunken)",
                         border: "1px solid var(--border)" }}>
-            {([["overview", "Today"], ["jobs", "All jobs"],
-               ["queue", "Names to check"]] as const)
+            {([["jobs", "Find a job"], ["overview", "My applications"],
+               ["queue", "Fix company names"]] as const)
               .map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
-                      className="px-2.5 py-1 text-xs rounded-md"
+                      className="px-3 py-1 text-xs rounded-md whitespace-nowrap"
                       style={tab === id
                         ? { background: "var(--bg-raised)", color: "var(--text)",
                             boxShadow: "var(--shadow)" }

@@ -141,6 +141,15 @@ class ResolveCompanyRequest(BaseModel):
     acknowledge_agency: bool = False
 
 
+class LogApplicationRequest(BaseModel):
+    action_id: str = ""
+    job_id: str
+    applied_via: str = "company site"
+    date_applied: str = ""
+    notes: str = ""
+    override_reason: str = ""
+
+
 class ActionResponse(BaseModel):
     applied: bool
     replayed: bool = False

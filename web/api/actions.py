@@ -16,6 +16,7 @@ we append a compensating `*.failed` entry rather than deleting anything.
 """
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -283,6 +284,115 @@ class Actions:
         }
         sponsor_check.save_aliases(raw, str(self.settings.aliases_path))
         self.registry.invalidate_overlays()
+
+        changed = self._write_store(mutations, entry)
+        effects["rows_changed"] = changed
+        return ActionResult(applied=True, validations=validations,
+                            changes=changes, effects=effects,
+                            log_entry_id=entry["id"])
+
+    # --- log-application ----------------------------------------------------
+
+    def log_application(self, *, job_id: str, applied_via: str = "company site",
+                        date_applied: str = "", notes: str = "",
+                        override_reason: str = "", action_id: str = "",
+                        preview: bool = False, actor_id: str = "",
+                        actor_name: str = "") -> ActionResult:
+        """Record that an application was sent.
+
+        The interesting validator is `eligible_to_apply`. It runs the SAME
+        disqualifier the shortlist uses, so the app refuses to log an
+        application to a role that needs security clearance he cannot get, or
+        an internship with the wrong graduation year, or an employer with no
+        sponsor licence. Those are precisely the applications that come back as
+        an auto-reject, and the whole pipeline exists to stop him spending one.
+
+        It is overridable, because a gate you cannot override is a gate people
+        route around. But the override is written into the log entry with the
+        reason, so "I applied anyway" is a recorded decision rather than a
+        silent one.
+        """
+        if not preview and action_id:
+            replayed = self._replay(action_id)
+            if replayed:
+                return replayed
+
+        validations: list[dict] = []
+
+        row = self.store.row(job_id)
+        if row is None:
+            raise ActionError("not_found", f"No job {job_id!r}.")
+        validations.append(ok("job_exists", row.get("title", "")))
+
+        current = (row.get("status") or "").strip().lower()
+        if current and current != tracker.DEFAULT_STATUS:
+            raise ActionError(
+                "already_actioned",
+                f"That one is already marked {current!r}"
+                f"{' on ' + row['date_applied'] if row.get('date_applied') else ''}.",
+                validations=validations + [fail("not_already_actioned", current)])
+        validations.append(ok("not_already_actioned"))
+
+        if applied_via not in APPLY_METHODS:
+            raise ActionError("unknown_method",
+                              f"How did you apply? One of: "
+                              f"{', '.join(APPLY_METHODS)}.")
+        validations.append(ok("applied_via_known", applied_via))
+
+        when = (date_applied or dt.date.today().isoformat()).strip()
+        try:
+            if dt.date.fromisoformat(when) > dt.date.today():
+                raise ActionError("ineligible",
+                                  "That date is in the future.")
+        except ValueError:
+            raise ActionError("ineligible",
+                              f"{when!r} is not a date (use YYYY-MM-DD).")
+        validations.append(ok("date_not_future", when))
+
+        # The gate this action exists for.
+        reason = shortlist.disqualify(row, max_age=None)
+        if reason:
+            if not override_reason.strip():
+                raise ActionError(
+                    "ineligible",
+                    f"This one would auto-reject you: {reason}. "
+                    "Apply anyway only if you know something the filter does not.",
+                    validations=validations + [
+                        fail("eligible_to_apply", reason, overridable=True)])
+            validations.append({
+                "rule": "eligible_to_apply", "result": "fail", "detail": reason,
+                "overridden": True, "override_reason": override_reason.strip()})
+        else:
+            validations.append(ok("eligible_to_apply"))
+
+        mutations = {row["id"]: {
+            "status": "applied", "date_applied": when,
+            "applied_via": applied_via,
+            **({"notes": notes.strip()} if notes.strip() else {})}}
+        changes = [{"entity": f"job:{row['id']}", "title": row.get("title", ""),
+                    "field": "status", "before": row.get("status", ""),
+                    "after": "applied"}]
+        effects = {"job_id": row["id"], "company": row.get("company", ""),
+                   "title": row.get("title", ""), "date_applied": when,
+                   "applied_via": applied_via, "rows_changed": 1}
+
+        if preview:
+            return ActionResult(applied=False, validations=validations,
+                                changes=changes, effects=effects)
+
+        entry = self.log.record(
+            type=APPLICATION,
+            entity={"kind": "job", "id": row["id"]},
+            actor=self._actor(actor_id, actor_name),
+            input={"job_id": row["id"], "applied_via": applied_via,
+                   "date_applied": when, "notes": notes,
+                   "override_reason": override_reason},
+            validations=validations,
+            rationale=notes.strip() or f"Applied via {applied_via}.",
+            effects=effects,
+            before={row["id"]: {"status": row.get("status", "")}},
+            after={row["id"]: {"status": "applied"}},
+            action_id=action_id)
 
         changed = self._write_store(mutations, entry)
         effects["rows_changed"] = changed

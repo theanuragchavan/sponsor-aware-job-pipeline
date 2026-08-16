@@ -10,6 +10,7 @@ import { useState } from "react";
 import { api } from "./api";
 import type { LogEntry, ReviewItem } from "./api";
 import { DecisionPanel } from "./DecisionPanel";
+import { Overview } from "./Overview";
 import Landing from "./landing";
 import { Empty, Panel, Pill, ServerDown, Stat, ThemeToggle, useTheme } from "./components";
 
@@ -40,6 +41,9 @@ export default function App() {
 function Shell() {
   const { theme, setTheme } = useTheme();
   const [selected, setSelected] = useState<string | null>(null);
+  // Two screens, one piece of state. A router would buy shareable URLs for an
+  // app one person opens from an icon, at the cost of another dependency.
+  const [tab, setTab] = useState<"overview" | "queue">("overview");
 
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const review = useQuery({ queryKey: ["review"], queryFn: api.review });
@@ -67,10 +71,8 @@ function Shell() {
         </div>
 
         <div className="flex items-center gap-7">
-          {meta.data && (
+          {meta.data && tab === "queue" && (
             <>
-              <Stat label="Tracked" value={meta.data.dataset.rows.toLocaleString()} />
-              <Stat label="Employers" value={meta.data.dataset.companies} />
               <Stat label="Register" value={meta.data.register.entries.toLocaleString()}
                     hint={meta.data.register.route} />
               <Stat label="Resolved" value={meta.data.dataset.aliases} />
@@ -81,6 +83,19 @@ function Shell() {
           )}
           {meta.data?.mode === "demo" && <Pill tone="warn">demo data</Pill>}
           <span className="w-px h-8" style={{ background: "var(--border)" }} />
+          <div className="flex rounded-lg p-0.5 gap-0.5"
+               style={{ background: "var(--bg-sunken)",
+                        border: "1px solid var(--border)" }}>
+            {([["overview", "Jobs"], ["queue", "Names to check"]] as const)
+              .map(([id, label]) => (
+              <button key={id} onClick={() => setTab(id)}
+                      className="px-2.5 py-1 text-xs rounded-md"
+                      style={tab === id
+                        ? { background: "var(--bg-raised)", color: "var(--text)",
+                            boxShadow: "var(--shadow)" }
+                        : { color: "var(--text-faint)" }}>{label}</button>
+            ))}
+          </div>
           <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
       </header>
@@ -89,7 +104,9 @@ function Shell() {
           three-column layout up means two panels cheerfully invite you to
           "pick a company on the left" while the left is an error — which reads
           as three unrelated problems instead of one. */}
-      {review.isError ? (
+      {tab === "overview" ? (
+        <main className="flex-1"><Overview onOpenQueue={() => setTab("queue")} /></main>
+      ) : review.isError ? (
         <main className="flex-1 p-4">
           <div className="max-w-xl mx-auto mt-12">
             <Panel title="Not connected"><ServerDown /></Panel>

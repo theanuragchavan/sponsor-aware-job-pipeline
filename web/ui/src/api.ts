@@ -60,6 +60,39 @@ export type ActionResponse = {
   log_entry_id: string | null;
 };
 
+export type Summary = {
+  tracked: number;
+  ready_to_apply: number;
+  applied: number;
+  awaiting_reply: number;
+  filtered_out: number;
+  filtered_no_sponsor: number;
+  needs_a_name_decision: number;
+};
+
+export type Job = {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  tier: string;
+  status: string;
+  source: string;
+  posted_date: string;
+  age_days: number | null;
+  salary_max: string;
+  sponsor_match: string;
+  sponsor_rating: string;
+  redirect_url: string;
+  score: number;
+  eligible: boolean;
+  disqualified_reason: string | null;
+  date_applied?: string;
+  applied_via?: string;
+};
+
+export type JobPage = { total: number; items: Job[] };
+
 export type Meta = {
   mode: "local" | "demo";
   actor: { id: string; display_name: string };
@@ -127,8 +160,21 @@ export type ResolveInput = {
   acknowledge_agency?: boolean;
 };
 
+export type LogApplicationInput = {
+  job_id: string;
+  applied_via?: string;
+  date_applied?: string;
+  notes?: string;
+  override_reason?: string;
+  action_id?: string;
+};
+
 export const api = {
   meta: () => call<Meta>("/meta"),
+  summary: () => call<Summary>("/summary"),
+  jobs: (q: string) => call<JobPage>(`/jobs?${q}`),
+  logApplication: (input: LogApplicationInput) =>
+    post<ActionResponse>("/actions/log-application", input),
   review: () => call<ReviewItem[]>("/review"),
   audit: (limit = 50) => call<LogEntry[]>(`/audit?limit=${limit}`),
   verify: () => call<{

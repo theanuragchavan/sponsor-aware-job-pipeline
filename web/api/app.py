@@ -22,12 +22,15 @@ from .actions import ActionError, Actions
 from .audit import DecisionLog
 from .demo_reset import DemoReset
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
-                     JobPage, Meta, ResolveCompanyRequest, ReviewItem)
+                     JobPage, LogApplicationRequest, Meta,
+                     ResolveCompanyRequest, ReviewItem)
 from .registry import Registry
 from .settings import load_settings
 from .store import TrackerStore
 
+import shortlist  # noqa: E402
 import sponsor_check  # noqa: E402
+import tracker  # noqa: E402
 
 settings = load_settings()
 store = TrackerStore(settings.tracker_path)
@@ -335,6 +338,57 @@ def audit_verify() -> dict:
 
 
 # --- actions ----------------------------------------------------------------
+
+@app.get("/api/summary")
+def summary() -> dict:
+    """The numbers the overview screen opens with.
+
+    One request rather than the client counting over a 3,308-row job list:
+    the counting is trivial here and shipping the whole store to the browser
+    to do it there is not.
+    """
+    rows = list(store.rows().values())
+    applied, ready, blocked, no_sponsor = [], [], 0, 0
+
+    for row in rows:
+        status = (row.get("status") or "").strip().lower()
+        if status and status != tracker.DEFAULT_STATUS:
+            applied.append(row)
+            continue
+        if shortlist.disqualify(row, max_age=None) is not None:
+            blocked += 1
+            if (row.get("sponsor_match") or "").lower() == "no":
+                no_sponsor += 1
+            continue
+        ready.append(row)
+
+    waiting = sum(1 for r in applied
+                  if (r.get("status") or "").strip().lower() == "applied")
+    return {
+        "tracked": len(rows),
+        "ready_to_apply": len(ready),
+        "applied": len(applied),
+        "awaiting_reply": waiting,
+        "filtered_out": blocked,
+        "filtered_no_sponsor": no_sponsor,
+        "needs_a_name_decision": len(views.review_queue(rows, registry)),
+    }
+
+
+@app.post("/api/actions/log-application/preview", response_model=ActionResponse)
+def log_application_preview(body: LogApplicationRequest) -> ActionResponse:
+    return ActionResponse(**actions.log_application(
+        **body.model_dump(), preview=True).as_dict())
+
+
+@app.post("/api/actions/log-application", response_model=ActionResponse,
+          dependencies=[Depends(rate_limit)])
+def log_application(body: LogApplicationRequest,
+                    who: tuple[str, str] = Depends(actor)) -> ActionResponse:
+    return ActionResponse(**actions.log_application(
+        **body.model_dump(), preview=False,
+        actor_id=who[0], actor_name=who[1]).as_dict())
+
 
 @app.post("/api/actions/resolve-company/preview", response_model=ActionResponse)
 def resolve_preview(body: ResolveCompanyRequest) -> ActionResponse:

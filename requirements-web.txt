@@ -1,0 +1,17 @@
+# Deployment dependencies for the web service ONLY.
+#
+# Deliberately not the project's full requirements — no pymupdf, no pandas, no
+# Firecrawl client. `requests` is here because sponsor_check imports it at
+# module scope, not because the web layer calls it: in demo mode
+# ensure_register() returns the SPONSOR_REGISTER_CSV override before any
+# network code is reached.
+#
+# The guarantee that the demo cannot phone home is that override plus the
+# absence of main.py/ats_main.py/liveness.py from the image, NOT the absence of
+# an HTTP library. Worth stating precisely, because "it can't reach the network
+# because requests isn't installed" would be a comforting and false claim.
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
+openpyxl==3.1.5
+pydantic==2.13.4
+requests==2.32.3

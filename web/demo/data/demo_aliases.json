@@ -1,0 +1,82 @@
+{
+  "Ashcombe Systems": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "ASHCOMBE SYSTEMS UK"
+  },
+  "Brackenridge Dynamics": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "BRACKENRIDGE DYNAMICS UK"
+  },
+  "Eastgate Compute": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "EASTGATE COMPUTE UK"
+  },
+  "Elmgate Intelligence": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "ELMGATE HOLDINGS LTD T A ELMGATE INTELLIGENCE"
+  },
+  "Grindlow": {
+    "actor": "demo",
+    "confirmed": "2026-08-16",
+    "log_entry_id": "af3f98279698a589",
+    "rating": "A",
+    "rationale": "Same registered address on Companies House; the board prints the brand.",
+    "register_name": "GRINDLOW LABS"
+  },
+  "Highmoor Logic": {
+    "actor": "demo",
+    "confirmed": "2026-08-16",
+    "log_entry_id": "08074143bb8a95dd",
+    "rating": "A",
+    "rationale": "The careers page footer names this legal entity.",
+    "register_name": "HIGHMOOR LOGIC UK"
+  },
+  "Inglewood Logic": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "INGLEWOOD LOGIC UK"
+  },
+  "Ironvale Networks": {
+    "actor": "demo",
+    "confirmed": "2026-08-16",
+    "log_entry_id": "33a3a8c172d72659",
+    "rating": "B",
+    "rationale": "Group filing lists this as the employing entity for UK engineering.",
+    "register_name": "IRONVALE NETWORKS UK"
+  },
+  "Larkspur Logic": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "DRAKEWELL HOLDINGS LTD T A LARKSPUR LOGIC"
+  },
+  "Silverbeck Networks": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "SILVERBECK NETWORKS UK"
+  },
+  "Westmere Digital": {
+    "actor": "demo",
+    "confirmed": "2026-08-10",
+    "rating": "A",
+    "rationale": "Confirmed against Companies House.",
+    "register_name": "INGLEWOOD HOLDINGS LTD T A WESTMERE DIGITAL"
+  }
+}

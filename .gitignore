@@ -18,6 +18,8 @@ pipeline/sponsor_review.md
 pipeline/shortlists/
 pipeline/profile.md
 data/sponsor_aliases.json
+data/sponsor_rejections.json
+data/decision_log.jsonl
 
 # Machine-specific: hardcoded interpreter path and project root.
 # run_tracker.bat.example is committed in its place.
@@ -52,3 +54,11 @@ __pycache__/
 .venv/
 venv/
 *.stackdump
+
+# ---------------------------------------------------------------------------
+# Web app. Build output and dependencies only — web/demo/data/ IS committed,
+# because the deployed demo must not run a generator on a cold start.
+# ---------------------------------------------------------------------------
+web/ui/node_modules/
+web/ui/dist/
+.vercel

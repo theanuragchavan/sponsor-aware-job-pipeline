@@ -16,8 +16,20 @@ import tracker  # noqa: E402
 
 
 def resolution_for(company: str, registry) -> Resolution:
-    """How this company is currently matched, and on whose authority."""
+    """How this company is matched, and on whose authority.
+
+    Three sources, checked in order of how specific the evidence is:
+
+      alias  a human confirmed this pair in the review queue, with a reason
+      board  data/ats_boards.csv maps it, curated by hand when the board was added
+      exact  the company name is verbatim on the register
+
+    Leaving `board` out is what made this report "no entry found" for Palantir,
+    Faculty, OpenAI, Monzo and ten others, all of them correctly verified —
+    their rows said yes and nothing in this function could explain why.
+    """
     key = sponsor_check.normalize_name(company)
+
     alias = registry.aliases.get(key)
     if alias:
         return Resolution(
@@ -27,6 +39,14 @@ def resolution_for(company: str, registry) -> Resolution:
             confirmed_by=alias.get("actor", ""),
             confirmed_at=alias.get("confirmed", ""),
             rationale=alias.get("rationale", ""))
+
+    board = registry.board_names.get(key)
+    if board:
+        return Resolution(method="board", register_name=board,
+                          rating=registry.rating_for(board),
+                          rationale="mapped in the board registry when this "
+                                    "employer's job board was added")
+
     if key in registry.lookup:
         return Resolution(method="exact", register_name=key,
                           rating=registry.lookup[key])

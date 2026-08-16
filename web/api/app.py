@@ -8,6 +8,7 @@ Run:  uvicorn web.api.app:app --reload
 """
 from __future__ import annotations
 
+import datetime as dt
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -23,7 +24,8 @@ from .audit import DecisionLog
 from .demo_reset import DemoReset
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, LogApplicationRequest, Meta,
-                     ResolveCompanyRequest, ReviewItem)
+                     ResolveCompanyRequest, ReviewItem,
+                     SetStatusRequest)
 from .registry import Registry
 from .settings import load_settings
 from .store import TrackerStore
@@ -409,6 +411,44 @@ def log_application(body: LogApplicationRequest,
     return ActionResponse(**actions.log_application(
         **body.model_dump(), preview=False,
         actor_id=who[0], actor_name=who[1]).as_dict())
+
+
+@app.post("/api/actions/set-status", response_model=ActionResponse,
+          dependencies=[Depends(rate_limit)])
+def set_status(body: SetStatusRequest,
+               who: tuple[str, str] = Depends(actor)) -> ActionResponse:
+    return ActionResponse(**actions.set_status(
+        **body.model_dump(), actor_id=who[0], actor_name=who[1]).as_dict())
+
+
+@app.get("/api/follow-ups")
+def follow_ups(after_days: int = 10) -> list[dict]:
+    """Applications that have gone quiet.
+
+    Derived on read rather than stored, so it can never disagree with the
+    tracker. An application with no date is not silently included — it is
+    reported with `days: null`, because "unknown" and "overdue" are different
+    things and only one of them needs chasing.
+    """
+    out = []
+    today = dt.date.today()
+    for row in store.rows().values():
+        if (row.get("status") or "").strip().lower() != "applied":
+            continue
+        raw = (row.get("date_applied") or "").strip()
+        days = None
+        if raw:
+            try:
+                days = (today - dt.date.fromisoformat(raw)).days
+            except ValueError:
+                days = None
+        if days is None or days >= after_days:
+            out.append({"id": row["id"], "company": row.get("company", ""),
+                        "title": row.get("title", ""), "date_applied": raw,
+                        "days": days,
+                        "applied_via": row.get("applied_via", "")})
+    out.sort(key=lambda r: (r["days"] is None, -(r["days"] or 0)))
+    return out
 
 
 @app.post("/api/actions/resolve-company/preview", response_model=ActionResponse)

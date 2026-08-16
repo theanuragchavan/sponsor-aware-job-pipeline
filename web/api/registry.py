@@ -16,6 +16,8 @@ from . import bootstrap  # noqa: F401
 
 import sponsor_check  # noqa: E402
 
+from .settings import ADZUNA_HOME  # noqa: E402
+
 
 class Registry:
     def __init__(self, register_csv: Path | None, aliases_path: Path,
@@ -30,6 +32,8 @@ class Registry:
         self._overlay_stamps: dict[str, tuple] = {}
         self._aliases: dict[str, dict] | None = None
         self._rejections: dict[str, list[str]] | None = None
+        self._boards: dict[str, str] | None = None
+        self._board_stamp: tuple | None = None
 
     # --- register -----------------------------------------------------------
 
@@ -125,6 +129,44 @@ class Registry:
     def is_rejected(self, company: str, register_name: str) -> bool:
         key = sponsor_check.normalize_name(company)
         return register_name in self.rejections.get(key, [])
+
+    # --- the board registry -------------------------------------------------
+
+    @property
+    def board_names(self) -> dict[str, str]:
+        """{normalised company: register name} from data/ats_boards.csv.
+
+        The THIRD source of sponsorship truth, and the one that is easy to miss.
+        `register_name` in that file is described in the project's own notes as
+        "load-bearing": Greenhouse reports Monzo as "Monzo" while the register
+        says "MONZO BANK", so without it every ingested board job fails the gate
+        it was collected to pass.
+
+        It is human-curated, which puts it on the same footing as a confirmed
+        alias rather than below it. Omitting it made the UI tell Anurag there
+        was "no entry found" for Palantir, Faculty, OpenAI, Monzo, Deliveroo and
+        nine others — his fourteen most important employers, every one of them
+        correctly verified in the data.
+        """
+        path = ADZUNA_HOME / "data" / "ats_boards.csv"
+        with self._lock:
+            stamp = None
+            if path.exists():
+                st = path.stat()
+                stamp = (st.st_mtime_ns, st.st_size)
+            if self._board_stamp != stamp or self._boards is None:
+                self._board_stamp = stamp
+                out: dict[str, str] = {}
+                if path.exists():
+                    import csv
+                    with open(path, encoding="utf-8-sig", newline="") as fh:
+                        for row in csv.DictReader(fh):
+                            company = (row.get("company") or "").strip()
+                            register = (row.get("register_name") or "").strip()
+                            if company and register:
+                                out[sponsor_check.normalize_name(company)] = register
+                self._boards = out
+            return self._boards
 
     def invalidate_overlays(self) -> None:
         with self._lock:

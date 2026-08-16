@@ -91,7 +91,33 @@ export type Job = {
   applied_via?: string;
 };
 
-export type JobPage = { total: number; items: Job[] };
+export type JobPage = { total: number; items: Job[]; facets?: Record<string, Record<string, number>> };
+
+export type JobDetail = Job & {
+  description: string;
+  notes: string;
+  date_applied: string;
+  applied_via: string;
+  score_reasons: string[];
+  clearance_hint: string;
+  resolution: {
+    method: "exact" | "alias" | "none";
+    register_name: string;
+    rating: string;
+    confirmed_by: string;
+    confirmed_at: string;
+    rationale: string;
+  } | null;
+  decision_trail: LogEntry[];
+};
+
+export type FollowUp = {
+  id: string; company: string; title: string;
+  date_applied: string; days: number | null; applied_via: string;
+};
+
+export const STATUSES = ["new", "applied", "screening", "interview",
+                         "offer", "rejected", "ignored", "closed"] as const;
 
 export type Meta = {
   mode: "local" | "demo";
@@ -173,6 +199,11 @@ export const api = {
   meta: () => call<Meta>("/meta"),
   summary: () => call<Summary>("/summary"),
   jobs: (q: string) => call<JobPage>(`/jobs?${q}`),
+  job: (id: string) => call<JobDetail>(`/jobs/${encodeURIComponent(id)}`),
+  followUps: (days = 10) => call<FollowUp[]>(`/follow-ups?after_days=${days}`),
+  setStatus: (input: { job_id: string; status: string; note?: string;
+                       action_id?: string }) =>
+    post<ActionResponse>("/actions/set-status", input),
   logApplication: (input: LogApplicationInput) =>
     post<ActionResponse>("/actions/log-application", input),
   review: () => call<ReviewItem[]>("/review"),

@@ -10,6 +10,7 @@ import { useState } from "react";
 import { api } from "./api";
 import type { LogEntry, ReviewItem } from "./api";
 import { DecisionPanel } from "./DecisionPanel";
+import { Jobs } from "./Jobs";
 import { Overview } from "./Overview";
 import Landing from "./landing";
 import { Empty, Panel, Pill, ServerDown, Stat, ThemeToggle, useTheme } from "./components";
@@ -43,7 +44,7 @@ function Shell() {
   const [selected, setSelected] = useState<string | null>(null);
   // Two screens, one piece of state. A router would buy shareable URLs for an
   // app one person opens from an icon, at the cost of another dependency.
-  const [tab, setTab] = useState<"overview" | "queue">("overview");
+  const [tab, setTab] = useState<"overview" | "jobs" | "queue">("overview");
 
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const review = useQuery({ queryKey: ["review"], queryFn: api.review });
@@ -86,7 +87,8 @@ function Shell() {
           <div className="flex rounded-lg p-0.5 gap-0.5"
                style={{ background: "var(--bg-sunken)",
                         border: "1px solid var(--border)" }}>
-            {([["overview", "Jobs"], ["queue", "Names to check"]] as const)
+            {([["overview", "Today"], ["jobs", "All jobs"],
+               ["queue", "Names to check"]] as const)
               .map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
                       className="px-2.5 py-1 text-xs rounded-md"
@@ -106,6 +108,8 @@ function Shell() {
           as three unrelated problems instead of one. */}
       {tab === "overview" ? (
         <main className="flex-1"><Overview onOpenQueue={() => setTab("queue")} /></main>
+      ) : tab === "jobs" ? (
+        <main className="flex-1 flex"><Jobs /></main>
       ) : review.isError ? (
         <main className="flex-1 p-4">
           <div className="max-w-xl mx-auto mt-12">

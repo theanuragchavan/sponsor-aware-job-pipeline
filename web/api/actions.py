@@ -28,8 +28,15 @@ import shortlist  # noqa: E402
 import sponsor_check  # noqa: E402
 import tracker  # noqa: E402
 
-STATUS_VOCAB = ("new", "applied", "ignored", "rejected", "interview", "offer",
-                "closed")
+# The pipeline as it actually runs, in order, plus the two ways out that are not
+# progress. "screening" is the recruiter call before a real interview and it was
+# missing from the first version of this list — which meant the one status you
+# reach most often after applying could not be recorded.
+STATUS_VOCAB = ("new", "applied", "screening", "interview", "offer",
+                "rejected", "ignored", "closed")
+
+#: Statuses that mean the application is still live and worth chasing.
+OPEN_STATUSES = ("applied", "screening", "interview")
 APPLY_METHODS = ("company site", "greenhouse", "ashby", "lever", "linkedin",
                  "email", "other")
 MIN_RATIONALE = 10
@@ -395,6 +402,90 @@ class Actions:
             action_id=action_id)
 
         changed = self._write_store(mutations, entry)
+        effects["rows_changed"] = changed
+        return ActionResult(applied=True, validations=validations,
+                            changes=changes, effects=effects,
+                            log_entry_id=entry["id"])
+
+    # --- set-status ---------------------------------------------------------
+
+    def set_status(self, *, job_id: str, status: str, note: str = "",
+                   action_id: str = "", preview: bool = False,
+                   actor_id: str = "", actor_name: str = "") -> ActionResult:
+        """Move a job along the pipeline.
+
+        Separate from `log_application` even though both write `status`, because
+        they are different decisions. Logging an application asserts something
+        about the outside world and is gated on eligibility; moving to
+        "screening" records something that happened to you and is gated on
+        nothing. Collapsing them would mean either an eligibility check on a
+        rejection — absurd — or no check on an application, which is the one
+        that matters.
+
+        The vocabulary is enforced here and nowhere else. The column stays free
+        text so a value typed into Excel by hand still loads, which is the same
+        bargain the rest of this store makes.
+        """
+        if not preview and action_id:
+            replayed = self._replay(action_id)
+            if replayed:
+                return replayed
+
+        validations: list[dict] = []
+
+        row = self.store.row(job_id)
+        if row is None:
+            raise ActionError("not_found", f"No job {job_id!r}.")
+        validations.append(ok("job_exists", row.get("title", "")))
+
+        target = (status or "").strip().lower()
+        if target not in STATUS_VOCAB:
+            raise ActionError(
+                "unknown_status",
+                f"{status!r} is not a status. One of: {', '.join(STATUS_VOCAB)}.")
+        validations.append(ok("status_known", target))
+
+        before = (row.get("status") or "").strip().lower() or tracker.DEFAULT_STATUS
+        if before == target:
+            raise ActionError(
+                "already_actioned", f"Already {target!r}.",
+                validations=validations + [fail("status_is_changing", target)])
+        validations.append(ok("status_is_changing", f"{before} -> {target}"))
+
+        fields: dict[str, str] = {"status": target}
+        # Reaching "applied" by this route still needs a date, or the follow-up
+        # view has nothing to count from and the row looks applied-to-forever.
+        if target == "applied" and not (row.get("date_applied") or "").strip():
+            fields["date_applied"] = dt.date.today().isoformat()
+        if note.strip():
+            existing = (row.get("notes") or "").strip()
+            stamp = dt.date.today().isoformat()
+            fields["notes"] = (f"{existing}\n{stamp}: {note.strip()}".strip()
+                               if existing else f"{stamp}: {note.strip()}")
+
+        changes = [{"entity": f"job:{row['id']}", "title": row.get("title", ""),
+                    "field": "status", "before": before, "after": target}]
+        effects = {"job_id": row["id"], "company": row.get("company", ""),
+                   "title": row.get("title", ""), "from": before, "to": target,
+                   "rows_changed": 1}
+
+        if preview:
+            return ActionResult(applied=False, validations=validations,
+                                changes=changes, effects=effects)
+
+        entry = self.log.record(
+            type=STATUS,
+            entity={"kind": "job", "id": row["id"]},
+            actor=self._actor(actor_id, actor_name),
+            input={"job_id": row["id"], "status": target, "note": note},
+            validations=validations,
+            rationale=note.strip() or f"Moved from {before} to {target}.",
+            effects=effects,
+            before={row["id"]: {"status": before}},
+            after={row["id"]: {"status": target}},
+            action_id=action_id)
+
+        changed = self._write_store({row["id"]: fields}, entry)
         effects["rows_changed"] = changed
         return ActionResult(applied=True, validations=validations,
                             changes=changes, effects=effects,

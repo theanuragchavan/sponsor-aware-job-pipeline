@@ -37,7 +37,7 @@ class ErrorEnvelope(BaseModel):
 
 
 class Resolution(BaseModel):
-    method: Literal["exact", "alias", "none"]
+    method: Literal["exact", "alias", "board", "none"]
     register_name: str = ""
     rating: str = ""
     confirmed_by: str = ""
@@ -148,6 +148,13 @@ class LogApplicationRequest(BaseModel):
     date_applied: str = ""
     notes: str = ""
     override_reason: str = ""
+
+
+class SetStatusRequest(BaseModel):
+    action_id: str = ""
+    job_id: str
+    status: str
+    note: str = ""
 
 
 class ActionResponse(BaseModel):

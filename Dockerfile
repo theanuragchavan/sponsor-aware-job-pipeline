@@ -13,6 +13,13 @@ RUN npm run build
 
 
 FROM python:3.13-slim
+
+# Hugging Face Spaces runs the container as UID 1000, so anything copied in as
+# root is read-only to the running app. The demo is deliberately writable —
+# visitors confirm aliases and those land in the tracker, the alias overlay and
+# the decision log — so every one of those writes would fail with EACCES. The
+# user is created here and everything is chowned to it below.
+RUN useradd --create-home --uid 1000 app
 WORKDIR /app
 
 COPY requirements-web.txt ./
@@ -31,10 +38,15 @@ COPY web/api/ ./web/api/
 COPY web/demo/data/ ./web/demo/data/
 COPY --from=ui /ui/dist ./web/ui/dist
 
+RUN chown -R app:app /app
+USER app
+
 ENV APP_MODE=demo \
     PYTHONUNBUFFERED=1 \
     RATE_LIMIT_PER_MIN=20 \
     MAX_LOG_ENTRIES=5000
 
-EXPOSE 8000
-CMD ["sh", "-c", "uvicorn web.api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# 7860 is what Hugging Face Spaces expects by default; Render and Fly inject
+# $PORT instead. The fallback covers both without a host-specific Dockerfile.
+EXPOSE 7860
+CMD ["sh", "-c", "uvicorn web.api.app:app --host 0.0.0.0 --port ${PORT:-7860}"]

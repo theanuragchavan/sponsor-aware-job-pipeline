@@ -10,6 +10,7 @@ import { useState } from "react";
 import { api } from "./api";
 import type { LogEntry, ReviewItem } from "./api";
 import { DecisionPanel } from "./DecisionPanel";
+import Landing from "./landing";
 import { Empty, Panel, Pill, ServerDown, Stat, ThemeToggle, useTheme } from "./components";
 
 const qc = new QueryClient({
@@ -17,6 +18,18 @@ const qc = new QueryClient({
 });
 
 export default function App() {
+  // Path-based, deliberately not a router and deliberately not mode-based.
+  //
+  // Routing on APP_MODE would mean waiting for /api/meta before deciding what
+  // to render, which is an async decision on first paint — a flash of the wrong
+  // page, every load. The path is known synchronously.
+  //
+  // So "/" is the landing and "/app" is the tool, in both modes. Local use goes
+  // straight to work because the launcher and the installed app both open
+  // "/app"; the landing is still there if you want it.
+  if (window.location.pathname !== "/app") {
+    return <Landing />;
+  }
   return (
     <QueryClientProvider client={qc}>
       <Shell />

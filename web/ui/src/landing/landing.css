@@ -1,0 +1,563 @@
+/* ---------------------------------------------------------------------------
+   Landing page styles.
+
+   Style direction: "register document". The page is dressed as a public record
+   being read, not a product being sold — hairline rules, small-caps field
+   labels, and one rule that governs every glyph on the page:
+
+       sans  = a person writing prose
+       mono  = a string a system recorded
+
+   That split is not typographic decoration. It is the subject. The whole tool
+   exists because a job board's string and the Home Office register's string are
+   different objects, so they are never set in the same face.
+
+   COLOUR: nothing here replaces src/index.css. Every colour resolves to a token
+   already defined there. Exactly one new token (--lp-veil) is added, and it
+   follows the same three-state pattern as the rest: bare :root carries the
+   complete light value, the media query is guarded with :not([data-theme=light])
+   so an explicit light choice beats a dark OS, and [data-theme=dark] repeats it
+   so the toggle wins in the other direction. No colour is defined only inside a
+   media query.
+--------------------------------------------------------------------------- */
+
+:root {
+  /* Translucent chrome. Sits over --bg, so it is --bg with alpha, not white. */
+  --lp-veil: rgb(251 251 250 / .72);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --lp-veil: rgb(12 13 15 / .72);
+  }
+}
+
+:root[data-theme="dark"] {
+  --lp-veil: rgb(12 13 15 / .72);
+}
+
+/* Non-colour tokens. Identical in both themes, so defined once. */
+:root {
+  /* Motion. Built-in CSS easings are too weak for anything deliberate. */
+  --lp-ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* Type scale, ~1.25 through the middle with the display breaking out. */
+  --lp-t-display: clamp(2.25rem, 5.6vw, 3.75rem);
+  --lp-t-h2:      clamp(1.375rem, 2.4vw, 1.75rem);
+  --lp-t-lede:    1.0625rem;
+  --lp-t-body:    0.9375rem;
+  --lp-t-small:   0.8125rem;
+  --lp-t-label:   0.6875rem;
+
+  /* Spacing, 4px grid. */
+  --lp-2:  0.5rem;
+  --lp-3:  0.75rem;
+  --lp-4:  1rem;
+  --lp-5:  1.5rem;
+  --lp-6:  2rem;
+  --lp-7:  3rem;
+  --lp-8:  4rem;
+  --lp-9:  6rem;
+
+  /* Measure. Prose never runs wider than this; ~64 characters. */
+  --lp-measure: 34rem;
+  --lp-page:    54rem;
+}
+
+/* --- page shell ----------------------------------------------------------- */
+
+.lp {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  min-height: 100%;
+}
+
+.lp-wrap {
+  max-width: var(--lp-page);
+  margin-inline: auto;
+  padding-inline: var(--lp-5);
+}
+
+/* Prose column. Left-aligned deliberately: a centred wall of text is the
+   thing every generic landing page does, and it is harder to read. */
+.lp-measure { max-width: var(--lp-measure); }
+
+/* --- header --------------------------------------------------------------- */
+
+.lp-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--lp-veil);
+  backdrop-filter: blur(16px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Translucency is a preference, not a given. */
+@media (prefers-reduced-transparency: reduce) {
+  .lp-header { background: var(--bg); backdrop-filter: none; }
+}
+
+.lp-header-inner {
+  max-width: var(--lp-page);
+  margin-inline: auto;
+  padding: var(--lp-3) var(--lp-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--lp-5);
+}
+
+.lp-wordmark {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  margin: 0;
+}
+
+.lp-wordmark-note {
+  font-size: var(--lp-t-small);
+  color: var(--text-muted);
+  margin-left: var(--lp-3);
+}
+
+@media (max-width: 640px) { .lp-wordmark-note { display: none; } }
+
+/* --- section scaffolding -------------------------------------------------- */
+
+/* Sections are separated by a hairline carrying a named label, not a number.
+   The page is an argument, not a procedure, so 01 / 02 / 03 would be a lie
+   about the structure. The label names the kind of evidence that follows. */
+.lp-section {
+  border-top: 1px solid var(--border);
+  padding-block: var(--lp-7);
+}
+
+.lp-label {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: var(--lp-4);
+}
+
+.lp-h2 {
+  font-size: var(--lp-t-h2);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.021em;   /* tracking tightens as size grows */
+  text-wrap: pretty;          /* balance halves two-sentence headings mid-clause */
+  margin: 0 0 var(--lp-4);
+}
+
+.lp-body {
+  font-size: var(--lp-t-body);
+  line-height: 1.65;
+  color: var(--text-muted);
+  margin: 0 0 var(--lp-4);
+}
+
+.lp-body:last-child { margin-bottom: 0; }
+.lp-body strong { color: var(--text); font-weight: 600; }
+
+/* --- hero ----------------------------------------------------------------- */
+
+.lp-hero { padding-block: var(--lp-7) var(--lp-8); }
+
+.lp-display {
+  font-size: var(--lp-t-display);
+  font-weight: 600;
+  line-height: 1.02;          /* leading tightens as size grows */
+  letter-spacing: -0.033em;   /* large type reads too loose at 0 */
+  text-wrap: balance;
+  margin: 0 0 var(--lp-5);
+  max-width: 20ch;
+}
+
+/* The register's own string, set at display size. Mono runs optically larger
+   and needs less negative tracking than sans at the same nominal size, so it
+   gets both corrections rather than inheriting the sans settings. */
+.lp-display-id {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  font-weight: 500;
+  letter-spacing: -0.012em;
+  word-spacing: -0.22em;      /* mono's word space is far too wide at 3.75rem */
+  color: var(--text-muted);
+}
+
+.lp-lede {
+  font-size: var(--lp-t-lede);
+  line-height: 1.6;
+  letter-spacing: -0.004em;
+  color: var(--text-muted);
+  max-width: var(--lp-measure);
+  margin: 0;
+}
+
+/* --- entity graph --------------------------------------------------------- */
+
+.lp-graph {
+  position: relative;
+  margin-block: var(--lp-7) 0;
+  border-top: 1px solid var(--border);
+  padding-top: var(--lp-6);
+}
+
+/* The field is capped well inside the page width. At full 68rem the two
+   columns sit so far apart that the edges read as five stray hairlines rather
+   than one diagram, and the whitespace between them looks like a bug. */
+/* One rule across both headings rather than two rules of different lengths.
+   A single continuous hairline is what a records page actually looks like. */
+.lp-graph-heads {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--lp-5);
+  padding-bottom: var(--lp-2);
+  border-bottom: 1px solid var(--border-strong);
+  margin-bottom: var(--lp-5);
+}
+
+.lp-graph-head {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.lp-graph-head span {
+  display: block;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+  margin-top: 3px;
+}
+
+.lp-graph-head-right { text-align: right; }
+
+.lp-graph-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(var(--lp-7), 1fr) minmax(0, auto);
+  grid-auto-rows: 2.75rem;
+  gap: var(--lp-4);
+  align-items: center;
+}
+
+/* The SVG sits under the nodes and is never a hit target. */
+.lp-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.lp-edge {
+  fill: none;
+  /* An edge here is information, not a divider, so it answers to the 3:1
+     non-text contrast rule. --border-strong is 1.5:1 on the dark ground and
+     reads as a smudge; --text-muted is 5.0 light / 7.2 dark and still quiet at
+     one pixel. */
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  /* pathLength=1 on the element, so the dash arithmetic is unit-free. */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  transition: stroke 180ms ease, opacity 180ms ease;
+}
+
+.lp-edge[data-snap="true"] { stroke: var(--accent); stroke-width: 1.5; }
+
+/* Hovering one pair pushes the other EDGES back. The nodes keep their full
+   contrast: dimming them would drop five real identifiers below 4.5:1, and the
+   pair reads clearly enough from the accented one alone. The edges are
+   graphics, so they can recede without a legibility cost. */
+.lp-graph-field[data-focus]:not([data-focus=""]) .lp-edge { opacity: 0.18; }
+.lp-graph-field[data-focus]:not([data-focus=""]) .lp-edge[data-live="true"] {
+  opacity: 1;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.lp-node {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-small);
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text);
+  transition: border-color 180ms ease, background-color 180ms ease;
+}
+
+.lp-node-right {
+  grid-column: 3;
+  justify-self: end;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.lp-node[data-live="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+/* A node is a button so the pairing is reachable without a pointer. */
+button.lp-node { cursor: pointer; text-align: left; }
+
+@media (hover: hover) and (pointer: fine) {
+  button.lp-node:hover { border-color: var(--border-strong); }
+}
+
+/* Stacked layout: the crossing lines mean nothing in one column, so below the
+   breakpoint each pair becomes a two-line record joined by a rule. */
+.lp-graph-stack { display: none; }
+
+@media (max-width: 760px) {
+  .lp-graph-heads, .lp-graph-field { display: none; }
+  .lp-graph-stack { display: flex; flex-direction: column; }
+}
+
+.lp-stack-pair {
+  display: grid;
+  gap: 2px;
+  padding: var(--lp-3) 0 var(--lp-3) var(--lp-4);
+  border-left: 2px solid var(--border);
+}
+
+.lp-stack-pair[data-snap="true"] { border-left-color: var(--accent); }
+
+.lp-stack-brand {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-small);
+  color: var(--text);
+}
+
+.lp-stack-register {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-small);
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+/* --- record table (mismatches, and the struck exhibits) ------------------- */
+
+.lp-table {
+  width: 100%;
+  /* Below this the identifier columns start hyphenating mid-token, which for
+     a page about exact strings is the one thing that must never happen. The
+     wrapper scrolls instead. */
+  min-width: 36rem;
+  border-collapse: collapse;
+  font-size: var(--lp-t-small);
+}
+
+.lp-note {
+  font-size: var(--lp-t-small);
+  line-height: 1.55;
+  color: var(--text-muted);
+  max-width: var(--lp-measure);
+  margin: var(--lp-6) 0 var(--lp-3);
+}
+
+.lp-table th {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-label);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: left;
+  padding: 0 var(--lp-4) var(--lp-2) 0;
+  border-bottom: 1px solid var(--border-strong);
+  white-space: nowrap;
+}
+
+.lp-table td {
+  padding: var(--lp-3) var(--lp-4) var(--lp-3) 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: baseline;
+}
+
+.lp-table tr:last-child td { border-bottom: none; }
+
+.lp-cell-id {
+  font-family: var(--font-mono);
+  color: var(--text);
+  /* Wrap at spaces only. An identifier broken mid-token is a different
+     identifier, and this page is an argument about exact strings. */
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.lp-cell-id-muted { color: var(--text-muted); }
+
+/* Tables sit below prose and need to read as a different object. */
+.lp-scroll { margin-top: var(--lp-3); overscroll-behavior-x: contain; }
+
+/* Where the table cannot fit, say so. A hard clip at the viewport edge reads
+   as a truncated table; a fade reads as a table that continues, which is the
+   difference between looking broken and looking scrollable. The mask is a
+   luminance mask, so it costs no colour token and works in both themes. */
+@media (max-width: 760px) {
+  .lp-scroll {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  }
+}
+
+/* The rule that found a pair is prose about the system, so it stays sans. */
+.lp-cell-rule {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.lp-cell-rule[data-none="true"] { color: var(--warn); }
+
+.lp-scroll { overflow-x: auto; }
+
+/* --- struck exhibit ------------------------------------------------------- */
+
+/* A rejected match is drawn through rather than greyed out. Greying says
+   "less important"; a strike says "recorded, then refused", which is what
+   actually happened.
+
+   Struck is the DEFAULT and the only state in the stylesheet. The reveal
+   undraws it from a keyframe for the 240ms it takes to draw it back, so a page
+   whose IntersectionObserver never fires still shows the exhibit refused. */
+.lp-struck { position: relative; display: inline-block; }
+
+.lp-strike {
+  position: absolute;
+  left: -0.15em;
+  right: -0.15em;
+  top: 50%;
+  height: 1px;
+  background: var(--stop);
+  clip-path: inset(0 0 0 0);
+  pointer-events: none;
+}
+
+.lp-verdict {
+  font-family: var(--font-mono);
+  font-size: var(--lp-t-label);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--stop);
+  background: var(--stop-soft);
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* --- rows that reveal ----------------------------------------------------- */
+
+/* Nothing here parks content in a hidden state. Both reveals hand Motion the
+   pre-state as the first keyframe of the animation, so it exists only while the
+   animation runs. See motion-hooks.ts for why that is not a stylistic choice.
+
+   Only opacity, transform and clip-path move, so no reveal triggers layout. */
+
+/* --- callout -------------------------------------------------------------- */
+
+.lp-callout {
+  border-left: 2px solid var(--accent);
+  padding: var(--lp-3) 0 var(--lp-3) var(--lp-4);
+  margin-block: var(--lp-6) 0;
+  max-width: var(--lp-measure);
+}
+
+.lp-callout p {
+  margin: 0;
+  font-size: var(--lp-t-lede);
+  line-height: 1.55;
+  letter-spacing: -0.004em;
+  color: var(--text);
+}
+
+.lp-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* --- CTA ------------------------------------------------------------------ */
+
+.lp-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--lp-5);
+  margin-top: var(--lp-6);
+}
+
+.lp-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--lp-2);
+  padding: 0.625rem 1.125rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--lp-t-body);
+  font-weight: 600;
+  letter-spacing: -0.006em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 140ms var(--lp-ease-out), filter 140ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .lp-button:hover { filter: brightness(1.08); }
+}
+
+/* Feedback on press, not on release. */
+.lp-button:active { transform: scale(0.97); }
+
+.lp-button-arrow { transition: transform 160ms var(--lp-ease-out); }
+
+@media (hover: hover) and (pointer: fine) {
+  .lp-button:hover .lp-button-arrow { transform: translateX(2px); }
+}
+
+.lp-cta-note {
+  font-size: var(--lp-t-small);
+  color: var(--text-muted);
+  max-width: 26rem;
+  line-height: 1.5;
+}
+
+/* --- footer --------------------------------------------------------------- */
+
+.lp-footer {
+  border-top: 1px solid var(--border);
+  padding-block: var(--lp-6) var(--lp-8);
+  font-size: var(--lp-t-small);
+  color: var(--text-muted);
+}
+
+.lp-footer p { margin: 0; max-width: var(--lp-measure); line-height: 1.6; }
+
+/* --- reduced motion ------------------------------------------------------- */
+
+/* index.css already collapses durations globally. This is the belt-and-braces
+   pass for the properties that matter here: the strike lands drawn, the edges
+   land drawn, nothing travels. */
+@media (prefers-reduced-motion: reduce) {
+  .lp-strike { clip-path: inset(0 0 0 0) !important; }
+  .lp-edge  { stroke-dashoffset: 0 !important; }
+}

@@ -81,7 +81,7 @@ End If
 ' Open in app mode: a standalone window with no address bar, whether or not the
 ' PWA has been installed. If it has, Windows will route to the installed app.
 Dim edge, chrome, url
-url    = "http://" & HOST & ":" & PORT & "/"
+url    = "http://" & HOST & ":" & PORT & "/app"   ' the tool, not the landing
 edge   = shell.ExpandEnvironmentStrings("%ProgramFiles(x86)%") & _
          "\Microsoft\Edge\Application\msedge.exe"
 chrome = shell.ExpandEnvironmentStrings("%ProgramFiles%") & _

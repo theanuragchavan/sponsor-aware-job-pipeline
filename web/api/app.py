@@ -67,7 +67,10 @@ def manifest() -> JSONResponse:
             "description": ("Synthetic demo of the sponsor-aware job pipeline."
                             if demo else
                             "Employer identity across the UK sponsor register."),
-            "start_url": "/app" if demo else "/",
+            # Both modes open the tool. "/" is the landing, and neither the
+            # installed app nor the launcher should make you click past a
+            # pitch to reach your own work.
+            "start_url": "/app",
             "scope": "/",
             "display": "standalone",
             "background_color": "#E0AA4A" if demo else "#2F6AE0",

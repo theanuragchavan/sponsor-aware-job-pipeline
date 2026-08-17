@@ -59,7 +59,7 @@ class Contacts:
     def upsert(self, *, company: str, name: str, source: str,
                handle: str = "", url: str = "", location: str = "",
                signals: list[str] | None = None, job_id: str = "",
-               notes: str = "") -> dict:
+               notes: str = "", routes: list[dict] | None = None) -> dict:
         """Add a contact, or fold new information into one already recorded.
 
         Keyed on (company, handle-or-name) so saving the same person twice from
@@ -87,6 +87,13 @@ class Contacts:
                                      ("name", name)):
                     if value and not existing.get(field):
                         existing[field] = value
+                # Routes are refreshed rather than merged: if someone took their
+                # email off their profile, the saved copy should stop offering
+                # it. Only overwrite with something, though — a lookup that came
+                # back empty because GitHub was unreachable must not erase what
+                # is already recorded.
+                if routes:
+                    existing["routes"] = routes
                 self._save(rows)
                 return existing
 
@@ -99,6 +106,9 @@ class Contacts:
                 "url": url.strip(),
                 "location": location.strip(),
                 "signals": signals or [],
+                # Kept on the contact so it survives the six-hour GitHub cache
+                # expiring, and so it is there when the message is drafted.
+                "routes": routes or [],
                 "status": "found",
                 "job_ids": [job_id] if job_id else [],
                 "notes": notes.strip(),

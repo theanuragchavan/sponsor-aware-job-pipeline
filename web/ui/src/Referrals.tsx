@@ -17,7 +17,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { api } from "./api";
-import type { Person, SavedContact } from "./api";
+import type { ContactRoute, Person, SavedContact } from "./api";
 import { Button, Pill } from "./components";
 
 export function Referrals({ company, jobId }: {
@@ -36,7 +36,7 @@ export function Referrals({ company, jobId }: {
   const save = useMutation({
     mutationFn: (p: Person) => api.saveContact({
       company, name: p.name, source: "github", handle: p.login,
-      url: p.url, location: p.location,
+      url: p.url, location: p.location, routes: p.contact_routes,
       signals: p.signals.map((s) => s.key), job_id: jobId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["referrals", company] }),
   });
@@ -95,33 +95,44 @@ export function Referrals({ company, jobId }: {
           {d.github.people.slice(0, 8).map((p) => {
             const already = d.saved.some((s) => s.handle === p.login);
             return (
-              <div key={p.login} className="flex items-baseline gap-2 py-1.5"
+              <div key={p.login} className="py-1.5"
                    style={{ borderBottom: "1px solid var(--border)" }}>
-                <a href={p.url} target="_blank" rel="noreferrer"
-                   className="text-[12.5px] font-medium underline underline-offset-2">
-                  {p.name}
-                </a>
-                {p.location && (
-                  <span className="text-[11px]"
-                        style={{ color: "var(--text-faint)" }}>{p.location}</span>
-                )}
-                <span className="flex gap-1 ml-auto shrink-0 items-center">
-                  {p.signals.map((s) => (
-                    <Pill key={s.key} tone="accent">{s.label}</Pill>
-                  ))}
-                  <Pill>{p.relationship}</Pill>
-                  {already
-                    ? <Pill tone="ok">saved</Pill>
-                    : <Button disabled={save.isPending}
-                              onClick={() => save.mutate(p)}>save</Button>}
-                </span>
+                <div className="flex items-baseline gap-2">
+                  <a href={p.url} target="_blank" rel="noreferrer"
+                     className="text-[12.5px] font-medium underline
+                                underline-offset-2 whitespace-nowrap">
+                    {p.name}
+                  </a>
+                  {p.location && (
+                    <span className="text-[11px]"
+                          style={{ color: "var(--text-faint)" }}>{p.location}</span>
+                  )}
+                  <span className="flex gap-1 ml-auto shrink-0 items-center">
+                    {p.signals.map((s) => (
+                      <Pill key={s.key} tone="accent">{s.label}</Pill>
+                    ))}
+                    <Pill>{p.relationship}</Pill>
+                    {already
+                      ? <Pill tone="ok">saved</Pill>
+                      : <Button disabled={save.isPending}
+                                onClick={() => save.mutate(p)}>save</Button>}
+                  </span>
+                </div>
+                <Routes routes={p.contact_routes} />
               </div>
             );
           })}
           {!!d.github.people.length && (
-            <Note>Only people who made their org membership public appear here,
-              so this is a starting point rather than a staff list. A
-              “contributor” may not work there at all.</Note>
+            <div className="flex flex-col gap-1 mt-1">
+              <Note>The small links under a name are contact routes that person
+                published themselves — GitHub hides the email field by default,
+                so an address showing here is one they chose to make public.
+                Nothing is guessed. Someone with no links published no route,
+                and LinkedIn is the way to reach them.</Note>
+              <Note>Only people who made their org membership public appear
+                here, so this is a starting point rather than a staff list. A
+                “contributor” may not work there at all.</Note>
+            </div>
           )}
         </Group>
       )}
@@ -172,6 +183,44 @@ export function Referrals({ company, jobId }: {
   );
 }
 
+/**
+ * How to reach one person, using only what they published themselves.
+ *
+ * Every route here came off their own profile or their own site. Nothing is
+ * guessed from a name-and-domain pattern, which is the thing that produces
+ * bounces, spam folders and "how did you get this address?" — and which is
+ * also what every paid contact-finder is quietly doing underneath.
+ *
+ * Deliberately not a one-click "message" button. The route is shown; the
+ * decision to use it, and what to say, stays with him.
+ */
+const ROUTE_ICON: Record<string, string> = {
+  website: "site", email: "email", x: "X",
+};
+
+function Routes({ routes }: { routes?: ContactRoute[] }) {
+  if (!routes?.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1 pl-0.5">
+      {routes.map((r) => (
+        <a key={r.kind} href={r.url} target="_blank" rel="noreferrer"
+           title={r.note}
+           className="px-2 py-0.5 rounded-md text-[11px] flex items-baseline gap-1.5
+                      max-w-[260px]"
+           style={{ background: "var(--bg-sunken)",
+                    border: "1px solid var(--border)" }}>
+          <span style={{ color: "var(--text-faint)" }}>
+            {ROUTE_ICON[r.kind] ?? r.kind}
+          </span>
+          <span className="truncate" style={{ color: "var(--accent)" }}>
+            {r.value}
+          </span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function Saved({ c, onMove }: {
   c: SavedContact; onMove: (a: { id: string; status: string }) => void;
 }) {
@@ -180,8 +229,8 @@ function Saved({ c, onMove }: {
   };
   const step = next[c.status];
   return (
-    <div className="flex items-baseline gap-2 py-1.5"
-         style={{ borderBottom: "1px solid var(--border)" }}>
+    <div className="py-1.5" style={{ borderBottom: "1px solid var(--border)" }}>
+      <div className="flex items-baseline gap-2">
       <a href={c.url} target="_blank" rel="noreferrer"
          className="text-[12.5px] font-medium underline underline-offset-2">
         {c.name}
@@ -206,6 +255,8 @@ function Saved({ c, onMove }: {
           </Button>
         )}
       </span>
+      </div>
+      <Routes routes={c.routes} />
     </div>
   );
 }

@@ -56,16 +56,56 @@ class Person:
     blog: str
     company: str
     url: str
+    #: Only ever what the person chose to publish. GitHub hides the email field
+    #: by default, so a value here means they deliberately made it visible —
+    #: which is the whole difference between this and guessing an address.
+    email: str
+    twitter: str
     relationship: str                    # "member" | "contributor"
     contributions: int = 0
     signals: list[Signal] = field(default_factory=list)
+
+    @property
+    def contact_routes(self) -> list[dict]:
+        """Ways to reach this person that they put in public themselves.
+
+        Ordered by how welcome the approach is likely to be. A personal site
+        usually has a contact form or an address the owner chose to advertise;
+        an email published on a profile is an invitation but a colder one; an X
+        handle is public but the least considered of the three.
+        """
+        out = []
+        if self.blog:
+            # The blog field is free text somebody typed into their own profile,
+            # and it ends up as an href. Anything that is not plainly http(s)
+            # gets https:// put in front of it rather than being trusted as a
+            # scheme, so `javascript:...` becomes an inert broken link instead
+            # of something the browser will run.
+            low = self.blog.lower()
+            url = (self.blog if low.startswith(("http://", "https://"))
+                   else f"https://{self.blog}")
+            out.append({"kind": "website", "value": self.blog, "url": url,
+                        "note": "their own site — usually has a contact page"})
+        if self.email:
+            out.append({"kind": "email", "value": self.email,
+                        "url": f"mailto:{self.email}",
+                        "note": "published on their GitHub profile, which is "
+                                "hidden by default"})
+        if self.twitter:
+            out.append({"kind": "x", "value": f"@{self.twitter}",
+                        "url": f"https://x.com/{self.twitter}",
+                        "note": "public handle"})
+        return out
 
     @property
     def score(self) -> int:
         # A confirmed employee outranks a contributor with the same signals,
         # because only one of them can actually refer you.
         base = 10 if self.relationship == "member" else 0
-        return profile.score(self.signals) + base
+        # A perfect match you cannot contact is worth less than a good one you
+        # can, so having a published route is itself part of the ranking.
+        reachable = 15 if self.contact_routes else 0
+        return profile.score(self.signals) + base + reachable
 
     def as_dict(self) -> dict:
         return {
@@ -73,6 +113,8 @@ class Person:
             "location": self.location, "bio": self.bio, "blog": self.blog,
             "url": self.url, "relationship": self.relationship,
             "contributions": self.contributions, "score": self.score,
+            "email": self.email, "twitter": self.twitter,
+            "contact_routes": self.contact_routes,
             "signals": [{"key": s.key, "label": s.label} for s in self.signals],
         }
 
@@ -165,6 +207,8 @@ def _person(login: str, relationship: str, contributions: int = 0) -> Person | N
         location=(data.get("location") or "").strip(),
         bio=(data.get("bio") or "").strip(),
         blog=(data.get("blog") or "").strip(),
+        email=(data.get("email") or "").strip(),
+        twitter=(data.get("twitter_username") or "").strip(),
         company=(data.get("company") or "").strip(),
         url=data.get("html_url", f"https://github.com/{login}"),
         relationship=relationship,

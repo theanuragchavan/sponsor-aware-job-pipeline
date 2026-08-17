@@ -118,10 +118,16 @@ export type FollowUp = {
 
 export type Signal = { key: string; label: string };
 
+/** A way to reach someone that they published themselves. Never a guess. */
+export type ContactRoute = {
+  kind: "website" | "email" | "x"; value: string; url: string; note: string;
+};
+
 export type Person = {
   login: string; name: string; location: string; bio: string; blog: string;
   url: string; relationship: "member" | "contributor";
   contributions: number; score: number; signals: Signal[];
+  email: string; twitter: string; contact_routes: ContactRoute[];
 };
 
 export type LinkedInSearch = {
@@ -132,6 +138,7 @@ export type SavedContact = {
   id: string; company: string; name: string; source: string; handle: string;
   url: string; location: string; signals: string[]; status: string;
   job_ids: string[]; notes: string; found_on: string; contacted_on: string;
+  routes?: ContactRoute[];
 };
 
 export type Referrals = {

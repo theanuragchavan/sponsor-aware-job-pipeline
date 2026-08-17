@@ -466,6 +466,30 @@ def referrals(company: str, contributors: bool = False,
     }
 
 
+#: Schemes a stored contact route is allowed to use. The route is rendered as a
+#: link, and the request body reaches here from the browser, so the whitelist
+#: lives on the write path rather than the read path — a bad value is refused
+#: once at save time instead of having to be filtered on every render.
+_ROUTE_SCHEMES = ("https://", "http://", "mailto:")
+
+
+def _clean_routes(raw: object) -> list[dict]:
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for r in raw[:10]:
+        if not isinstance(r, dict):
+            continue
+        url = str(r.get("url", "")).strip()
+        if not url.lower().startswith(_ROUTE_SCHEMES):
+            continue
+        out.append({"kind": str(r.get("kind", ""))[:20],
+                    "value": str(r.get("value", ""))[:200],
+                    "url": url[:500],
+                    "note": str(r.get("note", ""))[:200]})
+    return out
+
+
 @app.post("/api/contacts")
 def save_contact(body: dict) -> dict:
     return contacts.upsert(
@@ -473,7 +497,7 @@ def save_contact(body: dict) -> dict:
         source=body.get("source", "manual"), handle=body.get("handle", ""),
         url=body.get("url", ""), location=body.get("location", ""),
         signals=body.get("signals") or [], job_id=body.get("job_id", ""),
-        notes=body.get("notes", ""))
+        notes=body.get("notes", ""), routes=_clean_routes(body.get("routes")))
 
 
 @app.post("/api/contacts/{contact_id}/status")

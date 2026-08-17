@@ -18,6 +18,7 @@ Run:  python tests/test_web_api.py
 """
 import json
 import os
+import pathlib
 import sys
 import tempfile
 
@@ -504,6 +505,116 @@ def test_an_unknown_api_path_stays_a_404():
         spa = client.get("/some/client/route")
         assert spa.status_code == 200, "client-side route did not fall back"
         assert "text/html" in spa.headers.get("content-type", "")
+
+
+# --- published contact routes -----------------------------------------------
+
+def test_contact_routes_are_only_what_people_published():
+    """A route exists only when the person put it in public themselves.
+
+    The whole value of this feature is that it is not guessing. If a Person with
+    no blog, no public email and no handle produced a route anyway, the panel
+    would be presenting an invention as an invitation.
+    """
+    from web.api.referrals.github import Person
+
+    blank = Person(login="x", name="X", location="", bio="", blog="",
+                   company="", url="u", email="", twitter="",
+                   relationship="member")
+    assert blank.contact_routes == [], (
+        f"invented {len(blank.contact_routes)} route(s) for someone who "
+        f"published none")
+
+    full = Person(login="x", name="X", location="", bio="",
+                  blog="example.com", company="", url="u",
+                  email="me@example.com", twitter="handle",
+                  relationship="member")
+    kinds = [r["kind"] for r in full.contact_routes]
+    assert kinds == ["website", "email", "x"], kinds
+    by_kind = {r["kind"]: r["url"] for r in full.contact_routes}
+    assert by_kind["website"] == "https://example.com", (
+        "a schemeless blog value must get https:// added, not be used raw")
+    assert by_kind["email"] == "mailto:me@example.com"
+
+
+def test_route_url_is_always_absolute():
+    """The blog field is free text that ends up in an href.
+
+    Two things go wrong if it is used as typed. A scheme nobody vetted
+    (`javascript:`) is the security version. The mundane version is more likely
+    and was what a naive `startswith("http")` check let through: `http.cat` is a
+    real site, it starts with "http", and treating it as already-absolute yields
+    a relative link that resolves against his own app and 404s.
+
+    Every route URL must therefore be absolute and use a scheme we chose.
+    """
+    from web.api.referrals.github import Person
+
+    bad_inputs = (
+        "javascript:alert(1)", "JavaScript:alert(1)",
+        "data:text/html,<script>x</script>", "vbscript:msgbox",
+        "http.cat",              # real domain, starts with "http"
+        "httpster.net",          # same trap
+        "example.com/contact",
+    )
+    for value in bad_inputs:
+        p = Person(login="x", name="X", location="", bio="", blog=value,
+                   company="", url="u", email="", twitter="",
+                   relationship="member")
+        url = p.contact_routes[0]["url"]
+        assert url.startswith("https://"), (
+            f"{value!r} produced href {url!r} — not an absolute https link")
+
+    # A genuine absolute URL is left exactly as the person wrote it.
+    for value in ("http://plain.example", "https://secure.example/me"):
+        p = Person(login="x", name="X", location="", bio="", blog=value,
+                   company="", url="u", email="", twitter="",
+                   relationship="member")
+        assert p.contact_routes[0]["url"] == value
+
+
+def test_saved_routes_are_filtered_on_the_way_in():
+    """The save request comes from the browser, so the whitelist lives here."""
+    from web.api.app import _clean_routes
+
+    kept = _clean_routes([
+        {"kind": "email", "value": "a@b.com", "url": "mailto:a@b.com"},
+        {"kind": "website", "value": "b.com", "url": "https://b.com"},
+        {"kind": "bad", "value": "x", "url": "javascript:alert(1)"},
+        {"kind": "bad", "value": "x", "url": "file:///etc/passwd"},
+        "not-a-dict",
+    ])
+    assert [r["kind"] for r in kept] == ["email", "website"], kept
+    assert _clean_routes("nonsense") == []
+    assert _clean_routes(None) == []
+
+
+def test_saving_a_contact_keeps_its_routes():
+    """Routes must outlive the six-hour GitHub cache.
+
+    Without this, he saves someone on Monday, comes back on Tuesday, and the
+    address he saved them for is gone until the lookup runs again.
+    """
+    import tempfile
+    from web.api.contacts import Contacts
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = Contacts(pathlib.Path(tmp) / "contacts.json")
+        routes = [{"kind": "email", "value": "a@b.com",
+                   "url": "mailto:a@b.com", "note": ""}]
+        store.upsert(company="Palantir", name="A", source="github",
+                     handle="a", routes=routes)
+
+        saved = store.for_company("Palantir")[0]
+        assert saved["routes"] == routes, saved.get("routes")
+
+        # Saving the same person again from a second job must not wipe them.
+        store.upsert(company="Palantir", name="A", source="github",
+                     handle="a", job_id="j2")
+        again = store.for_company("Palantir")[0]
+        assert again["routes"] == routes, (
+            "a re-save with no routes erased the ones already recorded")
+        assert again["job_ids"] == ["j2"]
 
 
 # --- runner -----------------------------------------------------------------

@@ -144,7 +144,10 @@ def _probe(job_id: str, key: str, timeout: int = 90) -> tuple[str, str]:
                  "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        # nosec B310 - the URL is FIRECRAWL_URL, a module constant
+        # defined above; no caller input reaches the scheme, so the
+        # file:// and custom-scheme risk bandit flags cannot occur.
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
             body = json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
         return UNKNOWN, f"firecrawl http {exc.code}"

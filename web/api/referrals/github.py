@@ -22,6 +22,7 @@ strangers as colleagues.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -108,13 +109,43 @@ def _gh(path: str) -> list | dict | None:
         return None
 
 
+#: What GitHub actually permits in an org name: alphanumerics and single
+#: hyphens, 1-39 characters, no hyphen at either end.
+_ORG_OK = re.compile(r"^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$")
+
+
 def candidate_orgs(company: str) -> list[str]:
+    """Slugs worth trying for this employer, guaranteed safe to put in a path.
+
+    Company names come from job boards — external data this code does not
+    control. The first version built one candidate as `"-".join(key.split())`,
+    which preserved everything except spaces: a company called
+    `../../user/octocat` produced exactly that slug, and `orgs/../../user/octocat`
+    resolves to a different GitHub endpoint entirely.
+
+    No shell is involved (subprocess takes a list), so this was never command
+    injection. It was path traversal into somebody else's API surface, which is
+    still not something to leave open. Every candidate is now validated against
+    what GitHub itself allows, and anything that fails is dropped rather than
+    sanitised into a different company's name.
+    """
     key = company.strip().lower()
     if key in ORG_OVERRIDES:
         return [ORG_OVERRIDES[key]]
+
     flat = "".join(ch for ch in key if ch.isalnum())
-    dashed = "-".join(key.split())
-    return list(dict.fromkeys([flat, dashed, flat + "hq", flat + "-oss"]))
+    dashed = "-".join("".join(ch for ch in word if ch.isalnum())
+                      for word in key.split())
+    dashed = dashed.strip("-")
+
+    # Suffixes only when there is a base to attach them to. Without this guard
+    # a company name of "" or ".." yields ["hq"] — an org that exists on GitHub
+    # and has nothing to do with the employer, so the panel would fill with
+    # strangers under a plausible-looking heading.
+    candidates = [flat, dashed]
+    if flat:
+        candidates += [flat + "hq", flat + "-oss"]
+    return [c for c in dict.fromkeys(candidates) if c and _ORG_OK.match(c)]
 
 
 def find_org(company: str) -> str | None:

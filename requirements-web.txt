@@ -14,4 +14,10 @@ fastapi==0.139.2
 uvicorn[standard]==0.51.0
 openpyxl==3.1.5
 pydantic==2.13.4
-requests==2.32.3
+# 2.33.0 clears PYSEC-2026-1872 (.netrc credential leak on crafted
+# URLs) and PYSEC-2026-2275 (predictable temp filename in
+# extract_zipped_paths). Neither is reachable from this code -- every
+# URL passed to requests here is a hardcoded constant, and
+# extract_zipped_paths is never called -- but shipping a package with
+# known CVEs in a public image is not a thing to leave alone.
+requests==2.33.0

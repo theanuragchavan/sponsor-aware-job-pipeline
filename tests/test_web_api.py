@@ -424,6 +424,53 @@ def test_capture_before_writes_is_what_makes_reset_meaningful():
         "for this object, which is exactly why the caller must capture early")
 
 
+# --- referral lookup safety -------------------------------------------------
+
+def test_a_company_name_cannot_escape_the_github_api_path():
+    """Company names come from job boards. They are not ours.
+
+    `orgs/{slug}` is built from the employer name, and the first version kept
+    everything except spaces — so a company called "../../user/octocat" produced
+    that exact slug and `orgs/../../user/octocat` resolved to a different GitHub
+    endpoint. No shell is involved, so this was never command injection; it was
+    path traversal into someone else's API surface, which is still worth closing.
+    """
+    from web.api.referrals.github import candidate_orgs
+
+    for hostile in ("../../user/octocat", "a?b=c&d=e", "foo/bar",
+                    "..", "a b/../c", "x" * 200):
+        for slug in candidate_orgs(hostile):
+            assert "/" not in slug, f"{hostile!r} -> {slug!r}"
+            assert "?" not in slug and "&" not in slug, f"{hostile!r} -> {slug!r}"
+            assert ".." not in slug, f"{hostile!r} -> {slug!r}"
+            assert len(slug) <= 39, f"{hostile!r} -> {slug!r}"
+
+
+def test_an_empty_company_name_yields_no_candidates():
+    """Otherwise the bare suffix survives: "" produced ["hq"], which is a real
+    GitHub org, so the panel would fill with strangers under the right heading."""
+    from web.api.referrals.github import candidate_orgs
+
+    for empty in ("", "   ", "..", "///", "?"):
+        assert candidate_orgs(empty) == [], f"{empty!r} produced candidates"
+
+
+def test_signals_never_infer_nationality_from_a_name():
+    """Matching is on what people publish about themselves. A surname is not a
+    statement, and an outreach message opening on an invented shared background
+    is worse than sending none."""
+    from web.api.referrals import profile
+
+    # Indian surnames with no self-declared signal must match nothing.
+    for name in ("Arnav Tiwari", "Priya Sharma", "Rajesh Gupta"):
+        assert profile.match(name) == [], f"{name!r} matched on the name alone"
+
+    # A stated location is a statement, and does match.
+    assert any(s.key == "london" for s in profile.match("London, United Kingdom"))
+    assert any(s.key == "nottingham"
+               for s in profile.match("PhD, University of Nottingham"))
+
+
 # --- single-service routing -------------------------------------------------
 # The deployed service serves the API and the built UI from one origin, so a
 # catch-all static mount sits at "/". These pin the two ways that goes wrong.

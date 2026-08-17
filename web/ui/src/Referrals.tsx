@@ -319,6 +319,12 @@ function DraftMessage({ person, company, jobId, jobTitle, signals, evidence,
               <span className="text-[11px] mono truncate"
                     style={{ color: "var(--ok)" }}>saved</span>
             )}
+            {d.note_to_visitor && (
+              <span className="text-[11px]"
+                    style={{ color: "var(--text-faint)" }}>
+                {d.note_to_visitor}
+              </span>
+            )}
           </div>
 
           <Note>Nothing is sent from here. Edit it, then send it yourself —

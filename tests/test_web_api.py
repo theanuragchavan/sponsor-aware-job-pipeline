@@ -508,6 +508,48 @@ def test_an_unknown_api_path_stays_a_404():
         assert "text/html" in spa.headers.get("content-type", "")
 
 
+# --- outreach on the public instance ----------------------------------------
+
+def test_the_demo_drafts_but_never_writes_a_file():
+    """The public demo is reachable by anyone.
+
+    `save` writes one file per request. Unbounded, on a free container, that is
+    a way to fill the disk, and rate limiting only slows it down. The demo
+    returns the text and writes nothing, so there is nothing to bound.
+    """
+    import importlib
+    import os as _os
+    import tempfile as _tf
+
+    with _tf.TemporaryDirectory() as tmp:
+        _os.environ["APP_MODE"] = "demo"
+        _os.environ["DEMO_DATA_DIR"] = tmp
+        try:
+            from web.api import settings as settings_mod
+            importlib.reload(settings_mod)
+            cfg = settings_mod.load_settings()
+            assert cfg.is_demo
+            drafts = cfg.drafts_dir
+            assert not drafts.exists(), "the demo created a drafts dir at boot"
+        finally:
+            _os.environ.pop("APP_MODE", None)
+            _os.environ.pop("DEMO_DATA_DIR", None)
+            importlib.reload(settings_mod)
+
+
+def test_the_outreach_route_is_rate_limited_like_the_other_writes():
+    """It was not, when first shipped. Every other POST that touches disk is."""
+    import inspect
+
+    from web.api import app as web_app
+
+    src = inspect.getsource(web_app)
+    idx = src.index('@app.post("/api/outreach"')
+    decorator = src[idx:src.index("\ndef ", idx)]
+    assert "rate_limit" in decorator, (
+        "/api/outreach has no rate limit; it writes a file per request")
+
+
 # --- published contact routes -----------------------------------------------
 
 def test_contact_routes_are_only_what_people_published():

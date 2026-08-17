@@ -501,7 +501,7 @@ def save_contact(body: dict) -> dict:
         notes=body.get("notes", ""), routes=_clean_routes(body.get("routes")))
 
 
-@app.post("/api/outreach")
+@app.post("/api/outreach", dependencies=[Depends(rate_limit)])
 def draft_outreach(body: dict) -> dict:
     """Draft the first message to one person. Never sends it.
 
@@ -509,6 +509,12 @@ def draft_outreach(body: dict) -> dict:
     and are his to send, so they do not belong in a public repository. The
     response always includes the text either way, because the common case is
     copying the short version straight into a connection note.
+
+    **Demo mode returns the text and writes nothing.** The public instance is
+    reachable by anyone, and one file per request with no ceiling is a way to
+    fill a free container's disk. Rate limiting alone would only slow that down;
+    not writing removes it. The demo exists to show what the draft looks like,
+    and the text in the response is that.
     """
     job_id = str(body.get("job_id") or "").strip()
     job = store.rows().get(job_id, {}) if job_id else {}
@@ -524,8 +530,14 @@ def draft_outreach(body: dict) -> dict:
 
     payload = d.as_dict()
     if body.get("save"):
-        path = outreach.write_file(d, settings.drafts_dir)
-        payload["saved_to"] = str(path)
+        if settings.is_demo:
+            payload["saved_to"] = ""
+            payload["note_to_visitor"] = (
+                "Saving to a file is disabled on the public demo. Locally this "
+                "writes a markdown file you edit and send yourself.")
+        else:
+            path = outreach.write_file(d, settings.drafts_dir)
+            payload["saved_to"] = str(path)
     return payload
 
 

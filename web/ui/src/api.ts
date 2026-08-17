@@ -154,6 +154,8 @@ export type OutreachDraft = {
   note: string; note_length: number; note_limit: number;
   message: string; channel: string; warnings: string[];
   saved_to?: string;
+  /** Set instead of a path when the public demo declines to write. */
+  note_to_visitor?: string;
 };
 
 export const CONTACT_STATUSES = ["found", "contacted", "replied",

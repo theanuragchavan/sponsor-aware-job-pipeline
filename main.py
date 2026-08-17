@@ -129,7 +129,13 @@ def run():
                     clean.append(job)
             found = tracker.merge_new_jobs(tracked, clean, search["tier"], lookup)
             new_rows.extend(found)
-            logger.info("T%d [%s] '%s' p%d: %d results, %d new",
+            # %s, not %d, for the tier. Tiers 1-4 are ints but Tier 5 is the
+            # string tag "5-watch" (config.TIER5_TAG), so %d raised TypeError on
+            # every Tier 5 page. logging catches that itself and prints to
+            # stderr, so the run kept going and the only symptom was two
+            # searches a day with no log line — the quietest way to lose the
+            # record of the watch-only track.
+            logger.info("T%s [%s] '%s' p%d: %d results, %d new",
                         search["tier"], search["category"] or "-",
                         search["keywords"], page, len(jobs), len(found))
 

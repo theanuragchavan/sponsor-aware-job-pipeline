@@ -14,6 +14,7 @@ import { useState } from "react";
 import { ApiError, api } from "./api";
 import type { Job } from "./api";
 import { Button, Empty, Panel, Pill, ServerDown } from "./components";
+import { DueNudges, RunSearch } from "./RunSearch";
 
 export function Overview({ onOpenQueue, onOpenJobs }: {
   onOpenQueue: () => void;
@@ -65,6 +66,10 @@ export function Overview({ onOpenQueue, onOpenJobs }: {
           security clearance.
         </p>
       )}
+
+      <RunSearch />
+
+      <DueNudges />
 
       {/* --- what to do now ------------------------------------------------- */}
       <Panel title="Apply to these"

@@ -22,13 +22,15 @@ from . import views
 from .actions import ActionError, Actions
 from .audit import DecisionLog
 from .contacts import Contacts
-from .referrals import github as gh_referrals, linkedin as li_referrals
+from .referrals import (github as gh_referrals, linkedin as li_referrals,
+                        xray as xray_referrals)
 from .demo_reset import DemoReset
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, LogApplicationRequest, Meta,
                      ResolveCompanyRequest, ReviewItem,
                      SetStatusRequest)
 from .registry import Registry
+from .runner import Runner
 from .settings import load_settings
 from .store import TrackerStore
 
@@ -42,6 +44,7 @@ registry = Registry(settings.register_csv, settings.aliases_path,
                     settings.rejections_path)
 log = DecisionLog(settings.decision_log_path, settings.max_log_entries)
 contacts = Contacts(settings.contacts_path)
+runner = Runner(settings.tracker_path)
 actions = Actions(store, registry, log, settings)
 
 # Only ever constructed in demo mode. A snapshot restored over a local instance
@@ -440,7 +443,8 @@ def set_status(body: SetStatusRequest,
 
 
 @app.get("/api/referrals/{company}")
-def referrals(company: str, contributors: bool = False) -> dict:
+def referrals(company: str, contributors: bool = False,
+              role: str = "") -> dict:
     """Who might refer you into this company.
 
     Three groups, deliberately not merged. GitHub gives real people but only
@@ -457,6 +461,7 @@ def referrals(company: str, contributors: bool = False) -> dict:
         "company": company,
         "github": found,
         "linkedin_searches": li_referrals.searches_for(company),
+        "xray_searches": xray_referrals.searches_for(company, role),
         "saved": contacts.for_company(company),
     }
 
@@ -482,6 +487,72 @@ def set_contact_status(contact_id: str, body: dict) -> dict:
     if row is None:
         raise ActionError("not_found", f"No contact {contact_id!r}.")
     return row
+
+
+@app.post("/api/actions/run-search")
+def run_search(kind: str = "adzuna") -> dict:
+    """Start an ingestion run. Refuses rather than queues."""
+    if settings.is_demo:
+        raise ActionError("not_found",
+                          "The public demo does not run ingestion.")
+    try:
+        run = runner.start(kind)
+    except RuntimeError as exc:
+        raise ActionError("already_actioned", str(exc), retryable=True)
+    except ValueError as exc:
+        raise ActionError("unknown_status", str(exc))
+    return run.as_dict()
+
+
+@app.get("/api/actions/run-search")
+def run_search_status(since: int = 0) -> dict:
+    """Poll for output. `since` is how many lines the caller already has.
+
+    Polling rather than websockets: one user, one browser, a run measured in
+    minutes. A socket would be more machinery for the same result.
+    """
+    if runner.current is None:
+        return {"kind": None, "running": False, "lines": [],
+                "total_lines": 0, "seconds": 0, "returncode": None,
+                "error": "", "started": 0}
+    return runner.current.as_dict(since=since)
+
+
+@app.get("/api/contacts/due")
+def contacts_due() -> list[dict]:
+    """Who is due a nudge, on the 0/4/9/14 day cadence.
+
+    Derived on read so it can never disagree with the contact records. Only
+    people actually contacted and not yet replied — someone who answered does
+    not need chasing, and someone never contacted needs a first message rather
+    than a follow-up.
+    """
+    import datetime as _dt
+    today = _dt.date.today()
+    steps = [(4, "gentle bump — add something useful, do not re-ask"),
+             (9, "a specific question about their work"),
+             (14, "the close: say you will stop, and mean it")]
+    out = []
+    for c in contacts.all():
+        if c.get("status") != "contacted":
+            continue
+        raw = (c.get("contacted_on") or "").strip()
+        if not raw:
+            continue
+        try:
+            days = (today - _dt.date.fromisoformat(raw)).days
+        except ValueError:
+            continue
+        due = [(d, why) for d, why in steps if days >= d]
+        if not due:
+            continue
+        day, why = due[-1]
+        out.append({"id": c["id"], "name": c.get("name", ""),
+                    "company": c.get("company", ""), "url": c.get("url", ""),
+                    "contacted_on": raw, "days": days,
+                    "touch": day, "what_to_send": why})
+    out.sort(key=lambda r: -r["days"])
+    return out
 
 
 @app.get("/api/follow-ups")

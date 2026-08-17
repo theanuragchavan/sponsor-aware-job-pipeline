@@ -126,7 +126,28 @@ export function Referrals({ company, jobId }: {
         </Group>
       )}
 
-      {/* 3 — the searches only he can run */}
+      {/* 3 — Google's index of the same profiles, without LinkedIn's limits */}
+      {d && !!(d as any).xray_searches?.length && (
+        <Group title="Search Google (no login, no limits)">
+          <Note>LinkedIn caps how many profiles you can view in a month. Google
+            indexes the same public profiles with no such cap, and two quoted
+            terms is a sharper filter than LinkedIn's keyword box.</Note>
+          <div className="flex flex-col gap-1 mt-1.5">
+            {(d as any).xray_searches.map((s: any) => (
+              <a key={s.key} href={s.url} target="_blank" rel="noreferrer"
+                 className="px-3 py-1.5 rounded-lg text-[12.5px]"
+                 style={{ background: "var(--bg-sunken)",
+                          border: "1px solid var(--border)" }}>
+                <span className="font-medium">{s.label}</span>
+                <span className="block text-[11px] mt-0.5"
+                      style={{ color: "var(--text-faint)" }}>{s.why}</span>
+              </a>
+            ))}
+          </div>
+        </Group>
+      )}
+
+      {/* 4 — the searches only he can run */}
       {d && (
         <Group title="Search LinkedIn yourself">
           <Note>These open in your browser, logged in as you. Nothing is read

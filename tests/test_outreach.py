@@ -177,7 +177,7 @@ def test_a_persons_name_cannot_escape_the_drafts_folder():
     """
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        for hostile in ("../../etc/passwd", "..\..\windows\system32",
+        for hostile in ("../../etc/passwd", r"..\..\windows\system32",
                         "C:/Windows/win.ini", "....//....//x"):
             d = outreach.draft(person_name=hostile, company="Palantir",
                                job_title="Solutions Engineer")

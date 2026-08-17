@@ -251,7 +251,7 @@ function JobDetail({ id }: { id: string | null }) {
           </a>
         )}
 
-        <Referrals company={j.company} jobId={j.id} />
+        <Referrals company={j.company} jobId={j.id} jobTitle={j.title} />
 
         {j.notes && <Field label="Your notes">
           <p className="text-[12.5px] whitespace-pre-wrap"

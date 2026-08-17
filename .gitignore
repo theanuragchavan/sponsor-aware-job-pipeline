@@ -63,3 +63,6 @@ web/ui/node_modules/
 web/ui/dist/
 .vercel
 data/contacts.json
+
+# Outreach drafts: real names, and messages that are his to send.
+drafts/

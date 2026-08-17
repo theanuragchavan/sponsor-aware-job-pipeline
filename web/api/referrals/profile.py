@@ -95,5 +95,31 @@ def match(*texts: str | None) -> list[Signal]:
     return sorted(found, key=lambda s: -s.weight)
 
 
+def evidence(signals: list[Signal], **fields: str | None) -> dict[str, str]:
+    """For each signal, the field and the words that actually triggered it.
+
+    `match` joins every field into one blob, which is right for deciding whether
+    a signal fired and useless for showing why. Without this the UI offered a
+    person's whole bio as the evidence for a location match, so a "London" match
+    was displayed next to an Edgar Allan Poe quote — and the instruction to
+    check the match before sending cannot be followed on evidence like that.
+
+    Returned as `key -> "location: London, United Kingdom"`, trimmed, because
+    the only reader is a human deciding whether the match is a coincidence.
+    """
+    out: dict[str, str] = {}
+    for signal in signals:
+        for name, text in fields.items():
+            if not text:
+                continue
+            if signal.pattern.search(text):
+                snippet = " ".join(text.split())
+                if len(snippet) > 120:
+                    snippet = snippet[:117] + "..."
+                out[signal.key] = f"{name}: {snippet}"
+                break
+    return out
+
+
 def score(signals: list[Signal]) -> int:
     return sum(s.weight for s in signals)

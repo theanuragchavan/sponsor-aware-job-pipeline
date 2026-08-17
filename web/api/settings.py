@@ -24,6 +24,7 @@ class Settings:
     rejections_path: Path
     decision_log_path: Path
     contacts_path: Path
+    drafts_dir: Path
     register_csv: Path | None  # None -> the real cached/downloaded register
     actor_id: str
     actor_name: str
@@ -55,6 +56,7 @@ def load_settings() -> Settings:
             rejections_path=base / "demo_rejections.json",
             decision_log_path=base / "demo_decision_log.jsonl",
             contacts_path=base / "demo_contacts.json",
+            drafts_dir=base / "demo_drafts",
             register_csv=base / "demo_register.csv",
             actor_id="visitor",
             actor_name="Demo visitor",
@@ -72,6 +74,7 @@ def load_settings() -> Settings:
         rejections_path=data / "sponsor_rejections.json",
         decision_log_path=data / "decision_log.jsonl",
         contacts_path=data / "contacts.json",
+        drafts_dir=ADZUNA_HOME / "drafts",
         register_csv=(Path(os.environ["SPONSOR_REGISTER_CSV"])
                       if os.getenv("SPONSOR_REGISTER_CSV") else None),
         actor_id=os.getenv("ACTOR_ID", "anurag"),

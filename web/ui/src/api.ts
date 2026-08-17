@@ -116,7 +116,7 @@ export type FollowUp = {
   date_applied: string; days: number | null; applied_via: string;
 };
 
-export type Signal = { key: string; label: string };
+export type Signal = { key: string; label: string; evidence?: string };
 
 /** A way to reach someone that they published themselves. Never a guess. */
 export type ContactRoute = {
@@ -146,6 +146,14 @@ export type Referrals = {
   github: { org: string | null; people: Person[]; error?: string };
   linkedin_searches: LinkedInSearch[];
   saved: SavedContact[];
+};
+
+export type OutreachDraft = {
+  person: string; company: string; job_title: string;
+  hook_key: string; hook_evidence: string;
+  note: string; note_length: number; note_limit: number;
+  message: string; channel: string; warnings: string[];
+  saved_to?: string;
 };
 
 export const CONTACT_STATUSES = ["found", "contacted", "replied",
@@ -240,6 +248,8 @@ export const api = {
     call<Referrals>(`/referrals/${encodeURIComponent(company)}`),
   saveContact: (input: Record<string, unknown>) =>
     post<SavedContact>("/contacts", input),
+  draftOutreach: (input: Record<string, unknown>) =>
+    post<OutreachDraft>("/outreach", input),
   setContactStatus: (id: string, status: string, note = "") =>
     post<SavedContact>(`/contacts/${id}/status`, { status, note }),
   setStatus: (input: { job_id: string; status: string; note?: string;

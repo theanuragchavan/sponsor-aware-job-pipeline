@@ -73,6 +73,7 @@ def _env(*rows):
         rejections_path=os.path.join(tmp, "rejections.json"),
         decision_log_path=os.path.join(tmp, "log.jsonl"),
         contacts_path=os.path.join(tmp, "contacts.json"),
+        drafts_dir=os.path.join(tmp, "drafts"),
         register_csv=reg_path, actor_id="tester", actor_name="Tester",
         cors_origins=(), rate_limit_per_min=0, max_log_entries=0)
 

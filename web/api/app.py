@@ -25,6 +25,7 @@ from .contacts import Contacts
 from .referrals import (github as gh_referrals, linkedin as li_referrals,
                         xray as xray_referrals)
 from .demo_reset import DemoReset
+from . import outreach
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, LogApplicationRequest, Meta,
                      ResolveCompanyRequest, ReviewItem,
@@ -498,6 +499,34 @@ def save_contact(body: dict) -> dict:
         url=body.get("url", ""), location=body.get("location", ""),
         signals=body.get("signals") or [], job_id=body.get("job_id", ""),
         notes=body.get("notes", ""), routes=_clean_routes(body.get("routes")))
+
+
+@app.post("/api/outreach")
+def draft_outreach(body: dict) -> dict:
+    """Draft the first message to one person. Never sends it.
+
+    `save` writes it to `drafts/`, which is gitignored: these carry real names
+    and are his to send, so they do not belong in a public repository. The
+    response always includes the text either way, because the common case is
+    copying the short version straight into a connection note.
+    """
+    job_id = str(body.get("job_id") or "").strip()
+    job = store.rows().get(job_id, {}) if job_id else {}
+
+    d = outreach.draft(
+        person_name=str(body.get("person_name") or ""),
+        company=str(body.get("company") or job.get("company") or ""),
+        job_title=str(body.get("job_title") or job.get("title") or ""),
+        signal_keys=body.get("signals") or [],
+        evidence=str(body.get("evidence") or ""),
+        evidence_by_signal=body.get("evidence_by_signal") or {},
+        channel=str(body.get("channel") or ""))
+
+    payload = d.as_dict()
+    if body.get("save"):
+        path = outreach.write_file(d, settings.drafts_dir)
+        payload["saved_to"] = str(path)
+    return payload
 
 
 @app.post("/api/contacts/{contact_id}/status")

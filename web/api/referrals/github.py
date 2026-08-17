@@ -64,6 +64,8 @@ class Person:
     relationship: str                    # "member" | "contributor"
     contributions: int = 0
     signals: list[Signal] = field(default_factory=list)
+    #: signal key -> the field and words that triggered it, for the UI to show.
+    evidence: dict = field(default_factory=dict)
 
     @property
     def contact_routes(self) -> list[dict]:
@@ -115,7 +117,9 @@ class Person:
             "contributions": self.contributions, "score": self.score,
             "email": self.email, "twitter": self.twitter,
             "contact_routes": self.contact_routes,
-            "signals": [{"key": s.key, "label": s.label} for s in self.signals],
+            "signals": [{"key": s.key, "label": s.label,
+                         "evidence": self.evidence.get(s.key, "")}
+                        for s in self.signals],
         }
 
 
@@ -215,6 +219,8 @@ def _person(login: str, relationship: str, contributions: int = 0) -> Person | N
         contributions=contributions,
     )
     p.signals = profile.match(p.location, p.bio, p.name, p.company)
+    p.evidence = profile.evidence(p.signals, location=p.location, bio=p.bio,
+                                  company=p.company)
     return p
 
 

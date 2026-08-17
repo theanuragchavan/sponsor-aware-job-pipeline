@@ -20,8 +20,8 @@ import { api } from "./api";
 import type { ContactRoute, Person, SavedContact } from "./api";
 import { Button, Pill } from "./components";
 
-export function Referrals({ company, jobId }: {
-  company: string; jobId: string;
+export function Referrals({ company, jobId, jobTitle = "" }: {
+  company: string; jobId: string; jobTitle?: string;
 }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -119,6 +119,13 @@ export function Referrals({ company, jobId }: {
                   </span>
                 </div>
                 <Routes routes={p.contact_routes} />
+                <DraftMessage
+                  person={p.name} company={company} jobId={jobId}
+                  jobTitle={jobTitle}
+                  signals={p.signals.map((s) => s.key)}
+                  evidence={Object.fromEntries(
+                    p.signals.map((s) => [s.key, s.evidence ?? ""]))}
+                  channel={p.contact_routes[0]?.value ?? "LinkedIn"} />
               </div>
             );
           })}
@@ -221,6 +228,131 @@ function Routes({ routes }: { routes?: ContactRoute[] }) {
   );
 }
 
+/**
+ * The first message, drafted but never sent.
+ *
+ * Two lengths because there are two channels and they are not interchangeable:
+ * a connection note has a hard character limit, an email does not. Both open
+ * on the shared signal that actually matched, and neither asks for a referral —
+ * that ask belongs after they have replied once, and the server refuses to
+ * generate it either way.
+ *
+ * The hook is shown with the profile text that produced it, because only he can
+ * tell a real match from a coincidence, and sending a message built on a wrong
+ * one is worse than sending nothing.
+ */
+function DraftMessage({ person, company, jobId, jobTitle, signals, evidence,
+                        channel }: {
+  person: string; company: string; jobId: string; jobTitle: string;
+  signals: string[]; evidence: Record<string, string>; channel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState("");
+
+  const draft = useMutation({
+    mutationFn: (save: boolean) => api.draftOutreach({
+      person_name: person, company, job_id: jobId, job_title: jobTitle,
+      signals, evidence_by_signal: evidence, channel, save }),
+  });
+
+  function copy(which: "note" | "message", text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(which);
+      setTimeout(() => setCopied(""), 1500);
+    }).catch(() => undefined);
+  }
+
+  if (!open) {
+    return (
+      <button className="text-[11px] underline underline-offset-2 mt-1"
+              style={{ color: "var(--text-faint)" }}
+              onClick={() => { setOpen(true); draft.mutate(false); }}>
+        draft a message
+      </button>
+    );
+  }
+
+  const d = draft.data;
+
+  return (
+    <div className="mt-2 p-3 rounded-lg flex flex-col gap-2"
+         style={{ background: "var(--bg-sunken)",
+                  border: "1px solid var(--border)" }}>
+      {draft.isPending && (
+        <Note>Drafting…</Note>
+      )}
+
+      {d && (
+        <>
+          <Note>
+            {d.hook_key
+              ? <>Opens on <strong>{d.hook_key}</strong>
+                  {d.hook_evidence
+                    ? <> — their profile says “{d.hook_evidence}”</> : null}.
+                  Check that is a real match before you send it.</>
+              : <>No shared signal matched, so it opens on their work instead.</>}
+          </Note>
+
+          <Block label={`Short version — ${d.note_length}/${d.note_limit} characters, `
+                        + `fits a LinkedIn connection note`}
+                 text={d.note} copied={copied === "note"}
+                 onCopy={() => copy("note", d.note)} />
+
+          <Block label="Longer version — email or their contact form"
+                 text={d.message} copied={copied === "message"}
+                 onCopy={() => copy("message", d.message)} />
+
+          {!!d.warnings.length && (
+            <div className="text-[11px] px-2 py-1.5 rounded"
+                 style={{ background: "var(--stop-soft)", color: "var(--stop)" }}>
+              {d.warnings.join(" · ")}
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button disabled={draft.isPending}
+                    onClick={() => draft.mutate(true)}>
+              Save to a file
+            </Button>
+            <Button onClick={() => setOpen(false)}>Close</Button>
+            {d.saved_to && (
+              <span className="text-[11px] mono truncate"
+                    style={{ color: "var(--ok)" }}>saved</span>
+            )}
+          </div>
+
+          <Note>Nothing is sent from here. Edit it, then send it yourself —
+            and never ask for the referral in the first message. Ask the
+            question, and the offer usually comes on its own.</Note>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Block({ label, text, copied, onCopy }: {
+  label: string; text: string; copied: boolean; onCopy: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[10.5px] uppercase tracking-wider"
+              style={{ color: "var(--text-faint)" }}>{label}</span>
+        <button onClick={onCopy}
+                className="text-[11px] underline underline-offset-2 ml-auto shrink-0"
+                style={{ color: copied ? "var(--ok)" : "var(--accent)" }}>
+          {copied ? "copied" : "copy"}
+        </button>
+      </div>
+      <div className="text-[12px] leading-relaxed whitespace-pre-wrap rounded p-2"
+           style={{ background: "var(--bg-raised)",
+                    border: "1px solid var(--border)" }}>
+        {text}
+      </div>
+    </div>
+  );
+}
+
 function Saved({ c, onMove }: {
   c: SavedContact; onMove: (a: { id: string; status: string }) => void;
 }) {
@@ -257,6 +389,10 @@ function Saved({ c, onMove }: {
       </span>
       </div>
       <Routes routes={c.routes} />
+      <DraftMessage
+        person={c.name} company={c.company} jobId={c.job_ids[0] ?? ""}
+        jobTitle="" signals={c.signals} evidence={{}}
+        channel={c.routes?.[0]?.value ?? "LinkedIn"} />
     </div>
   );
 }

@@ -9,6 +9,21 @@
 ' and leaves one sitting in the taskbar. WScript.Shell with intWindowStyle 0
 ' runs uvicorn genuinely hidden.
 '
+' TWO BUGS FIXED 2026-08-18, both of which made this worse than the .bat it
+' replaced:
+'
+' 1. It never actually started the server. pythonw.exe has NO CONSOLE, so
+'    sys.stdout and sys.stderr are Nothing, and uvicorn dies on its first log
+'    write with exit code 1 before binding the port. Output is now redirected
+'    to logs\server.log, which both keeps uvicorn alive and leaves something
+'    to read when a launch fails.
+'
+' 2. It spawned a cmd window every 500ms while polling. shell.Exec ALWAYS
+'    shows a window - there is no hidden variant - so the health-check loop
+'    flashed up to 60 consoles per launch, and the "is it already running"
+'    check flashed one more. Both now use MSXML2.XMLHTTP, which makes the
+'    request in-process and shows nothing.
+'
 ' SECURITY — DO NOT CHANGE THE HOST.
 ' This server has NO authentication and it writes to the real job tracker.
 ' 127.0.0.1 means only processes on this machine can reach it. Changing it to
@@ -35,22 +50,41 @@ If Not fso.FileExists(PYTHON) Then
     WScript.Quit 1
 End If
 
-' Is it already listening? Re-launching would just fail on a bound port.
-Dim running, exec, out
-running = False
-On Error Resume Next
-Set exec = shell.Exec("cmd /c netstat -ano -p TCP | findstr LISTENING | findstr " & HOST & ":" & PORT)
-If Err.Number = 0 Then
-    out = exec.StdOut.ReadAll()
-    If InStr(out, HOST & ":" & PORT) > 0 Then running = True
-End If
-On Error GoTo 0
+' One health request, in-process, no window. Also a better question than the
+' netstat check it replaces: a port can be bound by a process that is wedged or
+' by an unrelated program, and neither of those should count as "already up".
+Function Responding(url)
+    Dim http
+    Responding = False
+    On Error Resume Next
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    http.Open "GET", url, False
+    http.Send
+    If Err.Number = 0 Then
+        If http.Status = 200 Then Responding = True
+    End If
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Dim healthUrl, running
+healthUrl = "http://" & HOST & ":" & PORT & "/api/health"
+running = Responding(healthUrl)
+
+Dim LOGFILE
+LOGFILE = ROOT & "\logs\server.log"
 
 If Not running Then
     shell.CurrentDirectory = ROOT
-    ' intWindowStyle 0 = hidden, bWaitOnReturn = False so we don't block.
-    shell.Run """" & PYTHON & """ -m uvicorn web.api.app:app --host " & _
-              HOST & " --port " & PORT, 0, False
+    If Not fso.FolderExists(ROOT & "\logs") Then fso.CreateFolder ROOT & "\logs"
+
+    ' The redirection is load-bearing, not tidiness. pythonw.exe has no console,
+    ' so without somewhere real to write, uvicorn's first log line raises and the
+    ' process exits 1 without ever binding the port - which is exactly what this
+    ' script did silently for as long as it existed. Routed through cmd because
+    ' shell.Run has no redirection of its own; style 0 keeps that cmd hidden.
+    shell.Run "cmd /c """"" & PYTHON & """ -m uvicorn web.api.app:app --host " & _
+              HOST & " --port " & PORT & " > """ & LOGFILE & """ 2>&1""", 0, False
 
     ' Poll until it answers rather than sleeping a fixed guess. Cold start is
     ' ~3s: the 3,308-row workbook and the 121k-entry register both load at boot
@@ -60,20 +94,20 @@ If Not running Then
     Do While waited < 30 And Not ok
         WScript.Sleep 500
         waited = waited + 0.5
-        On Error Resume Next
-        Set exec = shell.Exec("cmd /c curl -s -o NUL -w ""%{http_code}"" http://" & _
-                              HOST & ":" & PORT & "/api/health")
-        If Err.Number = 0 Then
-            If Trim(exec.StdOut.ReadAll()) = "200" Then ok = True
-        End If
-        On Error GoTo 0
+        ok = Responding(healthUrl)
     Loop
 
     If Not ok Then
+        Dim hint
+        hint = ""
+        If fso.FileExists(LOGFILE) Then
+            On Error Resume Next
+            hint = vbCrLf & vbCrLf & "Last thing the server said:" & vbCrLf & _
+                   Right(fso.OpenTextFile(LOGFILE, 1).ReadAll(), 500)
+            On Error GoTo 0
+        End If
         MsgBox "The server did not start within 30 seconds." & vbCrLf & vbCrLf & _
-               "Run this to see the error:" & vbCrLf & _
-               "cd /d " & ROOT & " && python -m uvicorn web.api.app:app --port " & PORT, _
-               vbExclamation, "Resolve"
+               "Full log: " & LOGFILE & hint, vbExclamation, "Resolve"
         WScript.Quit 1
     End If
 End If

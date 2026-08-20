@@ -1,3 +1,31 @@
+/* ---------------------------------------------------------------------------
+   Get That Job — design system.
+
+   Drop-in replacement for web/ui/src/index.css.
+
+   Every token name the existing components already read is preserved verbatim
+   (--bg, --bg-raised, --bg-sunken, --bg-hover, --border, --border-strong,
+   --text, --text-muted, --text-faint, --accent, --accent-soft, --accent-text,
+   --ok/--ok-soft, --warn/--warn-soft, --stop/--stop-soft, --shadow, --font-ui,
+   --font-mono). Values changed; names did not. Nothing has to be edited for the
+   app to keep rendering.
+--------------------------------------------------------------------------- */
+
+/* Fonts first: @import must precede every rule, and an external @import that
+   follows the Tailwind import gets hoisted anyway — putting it here makes the
+   ordering explicit rather than a bundler side effect.
+
+   Archivo is loaded as a variable font on BOTH axes. The width axis is not
+   decoration here: column headers and eyebrows are set at wdth 88 so they can
+   stay at a legible 10.5px instead of being shrunk to 9px to fit. Narrower,
+   not smaller, is how a ledger gets dense.
+
+   IBM Plex Mono carries every identifier. Its zero is slashed, which matters
+   because half the identifiers in this app are uppercase register names —
+   MONZO BANK, ROOFOODS LTD T A DELIVEROO — where 0 and O sit side by side and
+   the whole product is a claim about having read the name correctly. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..112,400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
@@ -12,92 +40,229 @@
 
    No colour is defined only inside a media query. That is the bug that makes a
    theme look broken for exactly one group of users and nobody else.
+
+   The two dark blocks are duplicated on purpose; CSS has no way to give one
+   declaration list two selectors across a media boundary. Edit both.
 --------------------------------------------------------------------------- */
 
 :root {
-  --bg:            #fbfbfa;
+  color-scheme: light;
+
+  /* Surfaces. Warm paper, cool ink — the neutral leans yellow (hue ~50) while
+     everything that carries meaning leans blue. That contrast is the reason
+     the greys read as chosen rather than as #f5f5f5. */
+  --bg:            #faf9f7;
   --bg-raised:     #ffffff;
-  --bg-sunken:     #f2f2f0;
-  --bg-hover:      #ecece9;
-  --border:        #e2e2de;
-  --border-strong: #cfcfc9;
+  --bg-sunken:     #f1f0ec;
+  --bg-hover:      #e9e8e3;
+  --border:        #e3e1db;
+  --border-strong: #c8c5bc;
 
-  --text:          #17181a;
-  --text-muted:    #6b6d72;
-  --text-faint:    #9a9ca1;
+  /* Three text tiers, set by contrast ratio rather than by eye: ~17:1, ~7.5:1,
+     ~4.9:1 against --bg. The old --text-faint (#9a9ca1) measured 2.9:1 and was
+     used for every column label and timestamp in the app — the densest, most
+     load-bearing type on screen was the only type that failed AA. */
+  --text:          #15171a;   /* 17.0:1 */
+  --text-muted:    #4e5158;   /*  7.6:1 */
+  --text-faint:    #6a6d74;   /*  4.9:1 */
 
-  --accent:        #2f6ae0;
-  --accent-soft:   #eaf0fd;
+  --accent:        #1f4fcf;
+  --accent-soft:   #e8edfb;
   --accent-text:   #ffffff;
 
-  --ok:            #1c7f4e;
-  --ok-soft:       #e4f4ec;
-  --warn:          #9a6206;
-  --warn-soft:     #fbf0da;
-  --stop:          #b3261e;
-  --stop-soft:     #fbe9e7;
+  --ok:            #0f6d42;
+  --ok-soft:       #e2f1e8;
+  --warn:          #8a5600;
+  --warn-soft:     #f9eed7;
+  --stop:          #ad2117;
+  --stop-soft:     #fbe8e5;
 
-  --shadow: 0 1px 2px rgb(0 0 0 / .04), 0 4px 16px rgb(0 0 0 / .05);
+  --shadow:        0 1px 2px rgb(20 18 12 / .05), 0 4px 16px rgb(20 18 12 / .06);
+  --shadow-drawer: -1px 0 0 var(--border), -12px 0 32px rgb(20 18 12 / .06);
 
-  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
-             "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-               "Liberation Mono", monospace;
+  /* ---- typography ------------------------------------------------------- */
+  --font-ui: Archivo, "Archivo Fallback", -apple-system, BlinkMacSystemFont,
+             "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo,
+               Consolas, "Liberation Mono", monospace;
+
+  /* Stepped scale, ~1.18 below 16px and ~1.3 above it. Eight sizes, no others.
+     A dense surface breaks when someone reaches for 12.7px. */
+  --fs-micro: 10.5px;   /* eyebrows, column headers — always uppercase, wdth 88 */
+  --fs-meta:  11.5px;   /* timestamps, provenance, hints */
+  --fs-sm:    12.5px;   /* dense row content, secondary text */
+  --fs-base:  13px;     /* body, controls */
+  --fs-md:    14px;     /* panel and card titles */
+  --fs-lg:    16.5px;   /* screen headings, drawer titles */
+  --fs-xl:    21px;     /* the one headline a screen is allowed */
+  --fs-fig:   30px;     /* the Overview numbers */
+
+  --lh-tight: 1.25;
+  --lh-snug:  1.4;
+  --lh-base:  1.5;
+  --lh-read:  1.65;     /* long-form only: interview prep, posting bodies */
+
+  --wd-narrow: 88%;     /* Archivo width axis: labels, table headers */
+  --wd-normal: 100%;
+
+  --wt-reg:    400;
+  --wt-med:    500;
+  --wt-semi:   600;
+  --wt-bold:   700;
+
+  --track-caps: .085em;
+  --measure:    68ch;   /* long-form column cap */
+
+  /* ---- space: 4px grid, plus two half-steps for row padding ------------- */
+  --s1:  2px;
+  --s2:  4px;
+  --s3:  6px;
+  --s4:  8px;
+  --s5:  12px;
+  --s6:  16px;
+  --s7:  24px;
+  --s8:  32px;
+
+  /* Row heights are a density contract, not a suggestion. */
+  --row-tight: 28px;    /* scan lists: jobs, queue, register rows */
+  --row-base:  34px;    /* rows carrying an action */
+  --row-loose: 44px;    /* rows carrying two lines */
+  --hd-h:      32px;    /* section header */
+  --bar-h:     48px;    /* sticky action bar */
+
+  /* ---- radius: three values, and 0 for anything in a list --------------- */
+  --r1: 3px;            /* chips, inputs, small controls */
+  --r2: 5px;            /* buttons, cards */
+  --r3: 8px;            /* panels, drawer */
+  --r-full: 999px;
+
+  /* ---- motion ----------------------------------------------------------- */
+  --dur-1: 90ms;
+  --dur-2: 160ms;
+  --dur-3: 240ms;
+  --ease-out: cubic-bezier(.2,.7,.3,1);
+  --ease-std: cubic-bezier(.4,0,.2,1);
+
+  /* ---- form-encoded state ------------------------------------------------
+     Diagonal hatch = "this surface is not attested". It survives greyscale,
+     colour blindness and a bad monitor, which is the entire point: the one
+     thing that must never be misread in this app is an unverified file
+     looking verified. */
+  --hatch: repeating-linear-gradient(
+             135deg,
+             transparent 0 5px,
+             color-mix(in oklab, var(--text-faint) 16%, transparent) 5px 6px);
+  --hatch-stop: repeating-linear-gradient(
+             135deg,
+             transparent 0 5px,
+             color-mix(in oklab, var(--stop) 30%, transparent) 5px 6px);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:            #0c0d0f;
-    --bg-raised:     #141619;
-    --bg-sunken:     #08090a;
-    --bg-hover:      #1d2025;
-    --border:        #24272c;
-    --border-strong: #363a41;
+    color-scheme: dark;
 
-    --text:          #e9eaec;
-    --text-muted:    #9a9ea6;
-    --text-faint:    #6a6e76;
+    --bg:            #0b0c0e;
+    --bg-raised:     #131518;
+    --bg-sunken:     #08090b;
+    --bg-hover:      #1d2026;
+    --border:        #23262b;
+    --border-strong: #3a3e46;
 
-    --accent:        #6f9bff;
-    --accent-soft:   #17223a;
-    --accent-text:   #0c0d0f;
+    --text:          #e9eaec;   /* 15.2:1 on --bg-raised */
+    --text-muted:    #a4a8b0;   /*  7.7:1 */
+    --text-faint:    #83878f;   /*  5.1:1 */
 
-    --ok:            #4ecb8b;
-    --ok-soft:       #10241a;
-    --warn:          #e0aa4a;
+    --accent:        #83a8ff;
+    --accent-soft:   #161f36;
+    --accent-text:   #0b0c0e;
+
+    --ok:            #4fce8d;
+    --ok-soft:       #0f2419;
+    --warn:          #e6b558;
     --warn-soft:     #2a2113;
-    --stop:          #ff7b6f;
-    --stop-soft:     #2c1512;
+    --stop:          #ff857a;
+    --stop-soft:     #2d1512;
 
-    --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 8px 28px rgb(0 0 0 / .45);
+    --shadow:        0 1px 2px rgb(0 0 0 / .5), 0 8px 28px rgb(0 0 0 / .45);
+    --shadow-drawer: -1px 0 0 var(--border), -14px 0 36px rgb(0 0 0 / .5);
   }
 }
 
 :root[data-theme="dark"] {
-  --bg:            #0c0d0f;
-  --bg-raised:     #141619;
-  --bg-sunken:     #08090a;
-  --bg-hover:      #1d2025;
-  --border:        #24272c;
-  --border-strong: #363a41;
+  color-scheme: dark;
+
+  --bg:            #0b0c0e;
+  --bg-raised:     #131518;
+  --bg-sunken:     #08090b;
+  --bg-hover:      #1d2026;
+  --border:        #23262b;
+  --border-strong: #3a3e46;
 
   --text:          #e9eaec;
-  --text-muted:    #9a9ea6;
-  --text-faint:    #6a6e76;
+  --text-muted:    #a4a8b0;
+  --text-faint:    #83878f;
 
-  --accent:        #6f9bff;
-  --accent-soft:   #17223a;
-  --accent-text:   #0c0d0f;
+  --accent:        #83a8ff;
+  --accent-soft:   #161f36;
+  --accent-text:   #0b0c0e;
 
-  --ok:            #4ecb8b;
-  --ok-soft:       #10241a;
-  --warn:          #e0aa4a;
+  --ok:            #4fce8d;
+  --ok-soft:       #0f2419;
+  --warn:          #e6b558;
   --warn-soft:     #2a2113;
-  --stop:          #ff7b6f;
-  --stop-soft:     #2c1512;
+  --stop:          #ff857a;
+  --stop-soft:     #2d1512;
 
-  --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 8px 28px rgb(0 0 0 / .45);
+  --shadow:        0 1px 2px rgb(0 0 0 / .5), 0 8px 28px rgb(0 0 0 / .45);
+  --shadow-drawer: -1px 0 0 var(--border), -14px 0 36px rgb(0 0 0 / .5);
 }
+
+/* ---------------------------------------------------------------------------
+   Tailwind bridge.
+
+   `inline` matters: it makes the generated utilities emit var(--bg-raised)
+   rather than the value light resolved to at build time. Without it every
+   Tailwind colour utility would be frozen in light mode.
+--------------------------------------------------------------------------- */
+@theme inline {
+  --color-ground:      var(--bg);
+  --color-raised:      var(--bg-raised);
+  --color-sunken:      var(--bg-sunken);
+  --color-hover:       var(--bg-hover);
+  --color-rule:        var(--border);
+  --color-rule-strong: var(--border-strong);
+  --color-ink:         var(--text);
+  --color-muted:       var(--text-muted);
+  --color-faint:       var(--text-faint);
+  --color-accent:      var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok:          var(--ok);
+  --color-warn:        var(--warn);
+  --color-stop:        var(--stop);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-mono);
+
+  --text-micro: var(--fs-micro);
+  --text-meta:  var(--fs-meta);
+  --text-sm:    var(--fs-sm);
+  --text-base:  var(--fs-base);
+  --text-md:    var(--fs-md);
+  --text-lg:    var(--fs-lg);
+  --text-xl:    var(--fs-xl);
+  --text-fig:   var(--fs-fig);
+
+  --radius-chip:  var(--r1);
+  --radius-ctl:   var(--r2);
+  --radius-panel: var(--r3);
+
+  --ease-out: var(--ease-out);
+}
+
+/* ---------------------------------------------------------------------------
+   Base.
+--------------------------------------------------------------------------- */
 
 * { box-sizing: border-box; }
 
@@ -108,15 +273,30 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-variant-numeric: tabular-nums;   /* a table of figures should never jitter */
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: var(--wt-semi);
+  line-height: var(--lh-tight);
+  letter-spacing: -.011em;
+  text-wrap: balance;
+}
+
 /* Every identifier is monospace: job ids, register names, timestamps, hashes.
-   They are things to compare character by character, not prose to read. */
-.mono, code, kbd { font-family: var(--font-mono); font-size: .92em; }
+   They are things to compare character by character, not prose to read.
+   Ligatures off, because a glued pair is a character you did not verify. */
+.mono, code, kbd, samp {
+  font-family: var(--font-mono);
+  font-size: .94em;
+  font-variant-ligatures: none;
+  letter-spacing: -.004em;
+}
 
 .tnum { font-variant-numeric: tabular-nums; }
 
@@ -126,7 +306,11 @@ body {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: var(--r1);
+}
+/* Rows live inside overflow containers that clip an outset ring. */
+.row:focus-visible, .cv-card:focus-visible, .drawer :focus-visible {
+  outline-offset: -2px;
 }
 
 /* Scrollbars, so a dense table does not paint a bright strip in dark mode. */
@@ -141,6 +325,469 @@ body {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Primitives.
+--------------------------------------------------------------------------- */
+
+/* --- eyebrow / column header ------------------------------------------- */
+.eyebrow {
+  font-size: var(--fs-micro);
+  font-weight: var(--wt-semi);
+  font-stretch: var(--wd-narrow);
+  letter-spacing: var(--track-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  line-height: var(--lh-tight);
+}
+
+/* --- panel -------------------------------------------------------------- */
+.panel {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--r3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.panel-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  height: var(--hd-h);
+  padding: 0 var(--s5);
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+.panel-hd h2, .panel-hd .panel-title {
+  font-size: var(--fs-md);
+  font-weight: var(--wt-semi);
+  letter-spacing: -.012em;
+}
+.panel-body { min-height: 0; overflow-y: auto; }
+.panel-foot {
+  height: var(--bar-h);
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 0 var(--s5);
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+  flex: 0 0 auto;
+}
+
+/* Regions of one instrument, not cards floating on a desk. Use .region-split
+   where the old layout used `gap-4` between panels: a 1px rule reclaims 30px
+   of horizontal space per seam and stops the eye reading three documents. */
+.region-split { display: grid; gap: 0; }
+.region-split > * + * { border-left: 1px solid var(--border); }
+.region-split > * { border-radius: 0; border-width: 0; }
+
+/* --- section header inside a scrolling body ----------------------------- */
+.sec-hd {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  height: var(--hd-h);
+  padding: 0 var(--s5);
+  background: var(--bg-sunken);
+  border-bottom: 1px solid var(--border);
+}
+
+/* --- dense row ---------------------------------------------------------- */
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s4);
+  width: 100%;
+  min-height: var(--row-tight);
+  padding: var(--s3) var(--s5) var(--s3) calc(var(--s5) - 2px);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out);
+}
+.row:hover { background: var(--bg-hover); }
+.row[aria-selected="true"], .row.is-active {
+  background: var(--accent-soft);
+  border-left-color: var(--accent);
+}
+.row--base  { min-height: var(--row-base); }
+.row--loose { min-height: var(--row-loose); align-items: flex-start; }
+.row:last-child { border-bottom: 0; }
+
+/* --- chip (status pill) -------------------------------------------------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r1);
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: var(--wt-med);
+  line-height: 1;
+  white-space: nowrap;
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.chip--accent { background: var(--accent-soft); color: var(--accent);
+                border-color: color-mix(in oklab, var(--accent) 30%, transparent); }
+.chip--ok     { background: var(--ok-soft);     color: var(--ok);
+                border-color: color-mix(in oklab, var(--ok) 30%, transparent); }
+.chip--warn   { background: var(--warn-soft);   color: var(--warn);
+                border-color: color-mix(in oklab, var(--warn) 32%, transparent); }
+.chip--stop   { background: var(--stop-soft);   color: var(--stop);
+                border-color: color-mix(in oklab, var(--stop) 32%, transparent); }
+.chip--num    { font-family: var(--font-mono); font-variant-numeric: tabular-nums;
+                min-width: 22px; justify-content: center; padding: 0 4px; }
+.chip--btn    { cursor: pointer; transition: background-color var(--dur-1) var(--ease-out),
+                                             border-color var(--dur-1) var(--ease-out); }
+.chip--btn:hover { background: var(--bg-hover); }
+.chip--btn[aria-pressed="true"] {
+  background: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+}
+
+/* --- verification badge -------------------------------------------------
+   Not a pill. The bottom-left corner is cut, so a verification mark has a
+   silhouette no status chip in the app shares — recognisable before the colour
+   or the word is read. */
+.attest {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  height: 22px;
+  padding: 0 var(--s4) 0 7px;
+  font-size: var(--fs-meta);
+  font-weight: var(--wt-med);
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  background: var(--bg-sunken);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 7px 100%, 0 calc(100% - 7px));
+}
+.attest__mark {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: var(--wt-semi);
+}
+.attest--ok {
+  background: var(--ok-soft); color: var(--ok);
+  border-color: color-mix(in oklab, var(--ok) 55%, transparent);
+}
+.attest--warn {
+  background: var(--warn-soft); color: var(--warn);
+  border-color: color-mix(in oklab, var(--warn) 55%, transparent);
+}
+.attest--none {
+  background: var(--stop-soft); color: var(--stop);
+  border-color: color-mix(in oklab, var(--stop) 55%, transparent);
+  background-image: var(--hatch-stop);
+}
+.attest--stale {
+  color: var(--text-faint);
+  background-image: var(--hatch);
+}
+
+/* --- hatch, as a surface state ------------------------------------------ */
+.hatch      { background-image: var(--hatch); }
+.hatch--stop{ background-image: var(--hatch-stop); }
+
+/* --- hash chip ----------------------------------------------------------
+   You compare hashes by their leading characters, so the leading characters
+   get the weight and the rest recedes. Full value on the title attribute and
+   in a copy button — truncation is a display decision, never a data one. */
+.hash {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--r1);
+  padding: 1px var(--s3);
+}
+/* In a column flex card the chip would stretch to the card width; it must hug
+   its own characters so its length reads as "this is a fingerprint". */
+.cv-card > .hash, .field > .hash { align-self: flex-start; }
+.hash__algo { color: var(--text-faint); opacity: .8; }
+.hash__head { color: var(--text); font-weight: var(--wt-semi); }
+.hash__tail { color: var(--text-faint); }
+
+/* --- provenance line -----------------------------------------------------
+   Who resolved it, when, and why — rendered next to the claim it backs, not
+   on a log page. Three parts, always in that order. */
+.prov {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2) var(--s4);
+  font-size: var(--fs-meta);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+  padding-left: var(--s4);
+  border-left: 1px solid var(--border-strong);
+}
+.prov__who  { color: var(--text); font-weight: var(--wt-med); }
+.prov__when { font-family: var(--font-mono); color: var(--text-faint); }
+.prov__why  { color: var(--text-muted); font-style: italic; }
+.prov--missing .prov__when { color: var(--warn); font-style: italic; }
+
+/* --- buttons ------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+  height: 28px;
+  padding: 0 var(--s5);
+  border-radius: var(--r2);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-base);
+  font-weight: var(--wt-med);
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--dur-1) var(--ease-out),
+              border-color var(--dur-1) var(--ease-out);
+}
+.btn:hover { background: var(--bg-hover); }
+.btn--primary {
+  background: var(--accent); color: var(--accent-text); border-color: transparent;
+}
+.btn--primary:hover { background: color-mix(in oklab, var(--accent) 88%, black); }
+.btn--danger { color: var(--stop); background: transparent; }
+.btn--danger:hover { background: var(--stop-soft); }
+.btn--sm { height: 24px; padding: 0 var(--s4); font-size: var(--fs-sm); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+/* --- input / segmented --------------------------------------------------- */
+.input {
+  height: 28px;
+  width: 100%;
+  padding: 0 var(--s4);
+  border-radius: var(--r1);
+  border: 1px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-base);
+}
+.input::placeholder { color: var(--text-faint); }
+.input:focus { border-color: var(--accent); }
+
+.seg {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: var(--r2);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+.seg > button {
+  height: 22px; padding: 0 var(--s4);
+  border: 0; border-radius: var(--r1);
+  background: transparent; color: var(--text-faint);
+  font: inherit; font-size: var(--fs-sm); font-weight: var(--wt-med);
+  cursor: pointer;
+  transition: color var(--dur-1) var(--ease-out);
+}
+.seg > button:hover { color: var(--text); }
+.seg > button[aria-pressed="true"] {
+  background: var(--bg-raised); color: var(--text); box-shadow: var(--shadow);
+}
+
+/* --- drawer -------------------------------------------------------------
+   A region, not an overlay. Nothing behind it is dimmed, because the list you
+   came from is the thing you are working down. */
+.drawer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-raised);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-drawer);
+}
+.drawer__hd {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: var(--s5);
+  padding: var(--s5) var(--s6);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-raised);
+  position: sticky; top: 0; z-index: 3;
+}
+.drawer__title { font-size: var(--fs-lg); font-weight: var(--wt-semi); }
+.drawer__body {
+  min-height: 0; overflow-y: auto;
+  padding: var(--s6) var(--s6) var(--s7);
+  display: flex; flex-direction: column; gap: var(--s6);
+}
+.drawer__foot {
+  display: flex; align-items: center; gap: var(--s4);
+  height: var(--bar-h); padding: 0 var(--s6);
+  border-top: 1px solid var(--border);
+  background: var(--bg-raised);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer { animation: drawer-in var(--dur-2) var(--ease-out) both; }
+}
+@keyframes drawer-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* --- field --------------------------------------------------------------- */
+.field { display: flex; flex-direction: column; gap: var(--s3); }
+.field > .eyebrow { margin-bottom: 0; }
+
+/* --- empty state --------------------------------------------------------
+   Left-aligned. A centred paragraph in the middle of a work surface reads as
+   a marketing slot; this is a sentence telling an operator what is true and
+   what to do about it. */
+.empty {
+  display: flex; flex-direction: column; align-items: flex-start; gap: var(--s4);
+  padding: var(--s6) var(--s5) var(--s7);
+  max-width: 46ch;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+  color: var(--text-muted);
+}
+.empty__hd { font-size: var(--fs-base); font-weight: var(--wt-med); color: var(--text); }
+
+/* --- note ---------------------------------------------------------------- */
+.note {
+  padding: var(--s4) var(--s5);
+  border-radius: var(--r2);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-snug);
+}
+.note__title { font-weight: var(--wt-semi); }
+.note--ok   { background: var(--ok-soft);   border-left-color: var(--ok); }
+.note--ok   .note__title { color: var(--ok); }
+.note--warn { background: var(--warn-soft); border-left-color: var(--warn); }
+.note--warn .note__title { color: var(--warn); }
+.note--stop { background: var(--stop-soft); border-left-color: var(--stop); }
+.note--stop .note__title { color: var(--stop); }
+
+/* --- CV variant card ----------------------------------------------------- */
+.cv-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  text-align: left;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--r2);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color var(--dur-1) var(--ease-out),
+              background-color var(--dur-1) var(--ease-out);
+}
+.cv-card:hover { background: var(--bg-hover); }
+.cv-card--ok      { border-left-color: var(--ok); }
+.cv-card--warn    { border-left-color: var(--warn); }
+.cv-card--none    { border-left-color: var(--stop); background-image: var(--hatch-stop); }
+.cv-card[aria-selected="true"] {
+  border-color: var(--accent); border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+.cv-card[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
+.cv-card__name {
+  font-size: var(--fs-md); font-weight: var(--wt-semi); letter-spacing: -.012em;
+}
+.cv-card__meta {
+  display: flex; flex-wrap: wrap; gap: var(--s2) var(--s4);
+  font-size: var(--fs-meta); color: var(--text-faint);
+}
+
+/* --- copies list (files matched to a build by content) ------------------- */
+.copies { display: flex; flex-direction: column; gap: var(--s2); }
+.copy {
+  display: flex; align-items: baseline; gap: var(--s4);
+  padding: var(--s3) 0;
+  border-bottom: 1px dotted var(--border-strong);
+  font-size: var(--fs-sm);
+}
+.copy:last-child { border-bottom: 0; }
+.copy__path { font-family: var(--font-mono); font-size: var(--fs-meta); }
+.copy__link { color: var(--text-faint); font-size: var(--fs-meta); }
+
+/* --- long-form reading (interview prep) ---------------------------------- */
+.read { max-width: var(--measure); font-size: var(--fs-base); line-height: var(--lh-read); }
+.read p + p { margin-top: var(--s5); }
+.read h3 { font-size: var(--fs-lg); margin-top: var(--s7); }
+.cite {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  vertical-align: .35em;
+  color: var(--accent);
+  text-decoration: none;
+  padding: 0 1px;
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
+}
+.cite:hover { background: var(--accent-soft); }
+
+/* ---------------------------------------------------------------------------
+   The one animation in the product.
+
+   A proposal becoming a fact: the dashed border closes to solid and the hatch
+   clears. It is the only place motion is allowed to run on its own, because it
+   is the only place where something changes truth value rather than position.
+   Both keyframes are inert under prefers-reduced-motion via the global guard;
+   the end state is the resting state, so a reduced-motion user sees the
+   confirmed appearance immediately rather than nothing at all.
+--------------------------------------------------------------------------- */
+.is-proposed {
+  border-style: dashed;
+  background-image: var(--hatch);
+}
+
+/* The confirmed appearance is the element's OWN resting style. This animation
+   adds a transient ring and nothing else — no animation-fill-mode, so no piece
+   of the truth on screen depends on an animation having finished. That is the
+   difference between motion that explains a change and motion that IS the
+   change; only the first survives a dropped frame, a background tab, or a
+   reduced-motion user. */
+.is-confirming { animation: confirm var(--dur-3) var(--ease-out); }
+@keyframes confirm {
+  from { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ok) 26%, transparent);
+         background-color: var(--ok-soft); }
+  to   { box-shadow: 0 0 0 3px transparent; background-color: transparent; }
+}
+.stamp-in { animation: stamp var(--dur-3) var(--ease-out); }
+@keyframes stamp {
+  0%   { opacity: 0; transform: scale(1.06); }
+  100% { opacity: 1; transform: none; }
 }

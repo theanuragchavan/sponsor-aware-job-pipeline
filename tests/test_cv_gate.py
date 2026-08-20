@@ -122,6 +122,89 @@ def test_main_exits_non_zero_when_any_file_is_blocked():
             del os.environ["CV_ATTESTATIONS"]
 
 
+# --- naming a CV instead of hashing one --------------------------------------
+#
+# Requiring a 64-character digest is what made recording an application not
+# happen: nobody types that at the moment they finish applying, so the tracker
+# stayed at 3,448 rows and zero applied.
+
+def _store2(**paths):
+    """{name: build_path} -> an attestation store keyed on fake digests."""
+    return {("%x" % (i + 1)).rjust(64, "0"):
+            {"path": p, "verify_version": cv_gate.REQUIRED_VERSION,
+             "attested_at": "2026-08-20T00:0%d:00+01:00" % i}
+            for i, p in enumerate(paths.values())}
+
+
+def test_a_short_name_resolves_to_a_digest():
+    store = _store2(a="Anurag_Chavan_Resume_AI_ML.pdf",
+                    b="Anurag_Chavan_Resume_SWE.pdf")
+    digest, how = cv_gate.resolve("aiml", store)
+    assert digest and store[digest]["path"].endswith("AI_ML.pdf"), how
+
+
+def test_short_names_drop_the_tokens_every_build_shares():
+    """`Master_Resume` must not shorten to `resume` — that names nothing."""
+    assert cv_gate.short_name("Anurag_Chavan_Master_Resume.pdf") == "master"
+    assert cv_gate.short_name("Anurag_Chavan_Resume_AI_ML.pdf") == "aiml"
+    assert cv_gate.short_name("Anurag_Chavan_Resume_DataScience.pdf") == "datascience"
+
+
+def test_the_same_build_reattested_is_not_ambiguity():
+    """Tectonic is not byte-reproducible, so one CV accumulates many digests.
+
+    Treating those as competing candidates would make every short name
+    permanently ambiguous after the second rebuild. The newest wins.
+    """
+    store = {
+        "a" * 64: {"path": "Anurag_Chavan_Resume_AI_ML.pdf",
+                   "verify_version": cv_gate.REQUIRED_VERSION,
+                   "attested_at": "2026-08-19T03:00:00+01:00"},
+        "b" * 64: {"path": "Anurag_Chavan_Resume_AI_ML.pdf",
+                   "verify_version": cv_gate.REQUIRED_VERSION,
+                   "attested_at": "2026-08-20T02:00:00+01:00"},
+    }
+    digest, _how = cv_gate.resolve("aiml", store)
+    assert digest == "b" * 64, "the newest attestation of a build must win"
+
+
+def test_two_different_builds_matching_is_refused_not_guessed():
+    """Same rule the sponsor matcher follows: propose, never decide.
+
+    Guessing here would attach the wrong document to the record that later has
+    to explain an outcome.
+    """
+    store = _store2(a="Anurag_Chavan_Resume_AI_ML.pdf",
+                    b="Anurag_Chavan_Resume_AI_Research.pdf")
+    digest, why = cv_gate.resolve("ai", store)
+    assert not digest
+    assert "be specific" in why, why
+
+
+def test_an_unknown_name_lists_what_is_available():
+    store = _store2(a="Anurag_Chavan_Resume_SWE.pdf")
+    digest, why = cv_gate.resolve("nonsense", store)
+    assert not digest and "swe" in why, why
+
+
+def test_a_file_path_is_hashed_on_the_spot():
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf = _fixture(tmp, "whatever.pdf", b"bytes")
+        digest, how = cv_gate.resolve(str(pdf), {})
+        assert digest == cv_gate.sha256_of(pdf), how
+
+
+def test_a_digest_passes_straight_through():
+    assert cv_gate.resolve("A" * 64, {})[0] == "a" * 64
+
+
+def test_superseded_builds_are_not_offered_by_name():
+    """An older verify_version means the file predates a check. Not selectable."""
+    store = {"a" * 64: {"path": "Anurag_Chavan_Resume_SWE.pdf",
+                        "verify_version": cv_gate.REQUIRED_VERSION - 1}}
+    assert cv_gate.resolve("swe", store)[0] == ""
+
+
 def test_the_store_path_carries_no_personal_path():
     """This repo is public. The default must be derived, not hardcoded."""
     source = Path(cv_gate.__file__).read_text(encoding="utf-8")

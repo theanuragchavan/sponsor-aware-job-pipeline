@@ -750,6 +750,30 @@ def test_the_cv_hash_lands_in_the_log_entry():
     assert entry["input"]["cv_sha256"] == "a" * 64
 
 
+def test_a_cv_can_be_named_and_the_log_still_gets_the_digest():
+    """The whole point of making it nameable, and the trap inside doing so.
+
+    A person logging an application has a role in mind, not a hash. But what
+    lands in the log must still be the content digest — recording "aiml" there
+    would put a label where the quarantine field belongs, and the field exists
+    precisely to separate applications sent on a broken CV from ones sent on a
+    verified one.
+    """
+    actions, _s, log, _r, tmp = _env(_eligible())
+    path = os.path.join(tmp, "attestations.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"c" * 64: {"path": "Anurag_Chavan_Resume_AI_ML.pdf",
+                              "verify_version": 3,
+                              "attested_at": "2026-08-20T02:00:00+01:00"}}, fh)
+
+    res = actions.log_application(job_id="900", cv_sha256="aiml")
+    rule = [v for v in res.validations if v["rule"] == "cv_verified"][0]
+    assert rule["result"] == "pass", rule
+    entry = log.entries()[-1]
+    assert entry["effects"]["cv_sha256"] == "c" * 64, \
+        "the log must record the digest, not the name that was typed"
+
+
 def test_no_attestation_store_is_skipped_not_passed():
     """The demo has no resume repo. A check with no answer must say so.
 

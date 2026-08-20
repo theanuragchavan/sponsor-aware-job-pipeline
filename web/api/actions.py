@@ -105,8 +105,14 @@ class ActionResult:
         }
 
 
-def cv_gate_state(cv_sha256: str, store_path) -> tuple[str, str]:
-    """("pass"|"fail"|"skip", detail) for the CV actually attached.
+def cv_gate_state(cv_ref: str, store_path) -> tuple[str, str, str]:
+    """("pass"|"fail"|"skip", detail, resolved_sha256) for the CV attached.
+
+    `cv_ref` is whatever a person had to hand — a short build name (`aiml`), a
+    file path, or a full digest. The third return value is the digest it
+    resolved to, and it is the one that must be persisted: recording the string
+    the user typed would put `"aiml"` in the log where a content hash belongs,
+    which is the entire field's purpose.
 
     Delegates to `pipeline/cv_gate.py` so there is exactly one definition of
     "verified" across the CLI, the pack skill and this API.
@@ -122,22 +128,28 @@ def cv_gate_state(cv_sha256: str, store_path) -> tuple[str, str]:
     try:
         import cv_gate
     except ImportError:                     # pragma: no cover - packaging slip
-        return "skip", "cv_gate unavailable"
+        return "skip", "cv_gate unavailable", ""
 
     store = cv_gate.load(Path(store_path))
     if not store:
-        return "skip", "no attestation store on this host"
+        return "skip", "no attestation store on this host", ""
 
-    digest = (cv_sha256 or "").strip().lower()
+    if not (cv_ref or "").strip():
+        return "fail", "no CV recorded for this application", ""
+
+    # Accepts a name, a path or a digest. Requiring the digest is what made this
+    # unusable: nobody types 64 hex characters at the moment they finish an
+    # application, so the record simply never got written.
+    digest, how = cv_gate.resolve(cv_ref, store)
     if not digest:
-        return "fail", "no CV hash recorded for this application"
+        return "fail", how, ""
     record = store.get(digest)
     if record is None:
-        return "fail", "that exact file has never passed verify_cv.py"
+        return "fail", "that exact file has never passed verify_cv.py", ""
     if record.get("verify_version") != cv_gate.REQUIRED_VERSION:
         return "fail", ("verified by an older checker (v%s), re-run verify_cv.py"
-                        % record.get("verify_version"))
-    return "pass", record.get("path", "")
+                        % record.get("verify_version")), ""
+    return "pass", "%s (%s)" % (record.get("path", ""), how), digest
 
 
 def _require_rationale(rationale: str) -> dict:
@@ -423,7 +435,7 @@ class Actions:
         # the same way. It also earns its keep later: an application whose
         # cv_sha256 is absent or overridden is self-identifying, so the first
         # forty never get averaged in with the ones sent on a fixed CV.
-        cv_state, cv_detail = cv_gate_state(
+        cv_state, cv_detail, cv_digest = cv_gate_state(
             cv_sha256, self.settings.attestations_path)
         if cv_state == "fail":
             if not override_reason.strip():
@@ -453,7 +465,7 @@ class Actions:
         effects = {"job_id": row["id"], "company": row.get("company", ""),
                    "title": row.get("title", ""), "date_applied": when,
                    "applied_via": applied_via, "rows_changed": 1,
-                   "cv_sha256": cv_sha256.strip().lower()}
+                   "cv_sha256": cv_digest}
 
         if preview:
             return ActionResult(applied=False, validations=validations,
@@ -465,7 +477,7 @@ class Actions:
             actor=self._actor(actor_id, actor_name),
             input={"job_id": row["id"], "applied_via": applied_via,
                    "date_applied": when, "notes": notes,
-                   "cv_sha256": cv_sha256.strip().lower(),
+                   "cv_sha256": cv_digest,
                    "override_reason": override_reason},
             validations=validations,
             rationale=notes.strip() or f"Applied via {applied_via}.",

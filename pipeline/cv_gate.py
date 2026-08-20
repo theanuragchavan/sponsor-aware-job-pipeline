@@ -25,6 +25,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -67,6 +68,85 @@ def load(path: Path) -> dict:
         return {}
 
 
+HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+#: Tokens every build shares, so they carry no information in a short name.
+NOISE = {"anurag", "chavan", "resume", "cv", "pdf"}
+
+
+def short_name(build_path: str) -> str:
+    """`Anurag_Chavan_Resume_AI_ML.pdf` -> `aiml`. The part that distinguishes it."""
+    stem = re.split(r"[\\/]", str(build_path))[-1]
+    stem = re.sub(r"\.pdf$", "", stem, flags=re.I)
+    parts = [p for p in re.split(r"[_\-\s]+", stem)
+             if p and p.lower() not in NOISE]
+    return re.sub(r"[^a-z0-9]", "", "".join(parts).lower()) or "cv"
+
+
+def current_builds(store: dict) -> dict:
+    """{short_name: (sha256, record)} — one entry per build, newest attestation.
+
+    Rebuilding is routine and tectonic is not byte-reproducible, so the store
+    accumulates several live hashes for the same document. Those are the same CV
+    attested again, not competing candidates, and treating them as ambiguity
+    would make every short name unusable. Different *builds* colliding is real
+    ambiguity; the same build re-attested is not.
+    """
+    out: dict[str, tuple[str, dict]] = {}
+    for digest, rec in store.items():
+        if rec.get("verify_version") != REQUIRED_VERSION:
+            continue
+        key = short_name(rec.get("path", ""))
+        seen = out.get(key)
+        if seen is None or str(rec.get("attested_at", "")) > str(
+                seen[1].get("attested_at", "")):
+            out[key] = (digest, rec)
+    return out
+
+
+def resolve(ref: str, store: dict) -> tuple[str, str]:
+    """Turn a human's way of naming a CV into a sha256. ("", why) if it cannot.
+
+    Three forms, because a person recording an application has a filename or a
+    role in mind, not a hash:
+
+        b1ca8749...          a digest, used as-is
+        D:\\Resume\\...\\x.pdf   a file on disk, hashed now
+        aiml                 a fragment of an attested build's name
+
+    The fragment form refuses ambiguity rather than guessing, which is the same
+    rule the sponsor matcher follows: it proposes and a human decides. Two
+    matches means the person has not said which CV they sent, and inventing an
+    answer there would silently attach the wrong document to the record that
+    later has to explain an outcome.
+    """
+    ref = (ref or "").strip()
+    if not ref:
+        return "", "no CV given"
+    if HEX64.match(ref.lower()):
+        return ref.lower(), "hash"
+
+    path = Path(ref)
+    if path.suffix.lower() == ".pdf" or path.exists():
+        if not path.exists():
+            return "", "no such file: %s" % ref
+        return sha256_of(path), "hashed %s" % path.name
+
+    builds = current_builds(store)
+    key = re.sub(r"[^a-z0-9]", "", ref.lower())
+    if not key:
+        return "", "no attested CV matches %r" % ref
+    hits = [(name, v) for name, v in builds.items() if key in name]
+    if len(hits) == 1:
+        name, (digest, rec) = hits[0]
+        return digest, "matched %s" % rec.get("path", name)
+    if not hits:
+        return "", "no attested CV matches %r (try: %s)" % (
+            ref, ", ".join(sorted(builds)) or "none attested")
+    return "", "%r matches %d CVs (%s) — be specific" % (
+        ref, len(hits), ", ".join(sorted(n for n, _v in hits)))
+
+
 def verdict(pdf: Path, store: dict) -> tuple[bool, str]:
     """(ok, reason). Reason is written for someone about to send the file."""
     if not pdf.exists():
@@ -85,14 +165,34 @@ def verdict(pdf: Path, store: dict) -> tuple[bool, str]:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description="Refuse unverified CV PDFs before an application is packed")
-    ap.add_argument("pdfs", nargs="+")
+    ap.add_argument("pdfs", nargs="*")
     ap.add_argument("--quiet", action="store_true",
                     help="print only failures")
+    ap.add_argument("--list", action="store_true",
+                    help="show the CVs you can name when logging an application")
     args = ap.parse_args(argv)
 
     store_path = attestations_path()
     store = load(store_path)
     failed = 0
+
+    if args.list:
+        builds = current_builds(store)
+        if not builds:
+            print("No attested CVs. Run verify_cv.py <pdf> --attest first.")
+            return 1
+        print("%-13s %-36s %-11s %s" % ("NAME", "BUILD", "SHA", "ATTESTED"))
+        for name in sorted(builds):
+            digest, rec = builds[name]
+            print("%-13s %-36s %-11s %s" % (
+                name, str(rec.get("path", ""))[:36], digest[:10],
+                rec.get("attested_at", "not recorded")))
+        print("\nName any of those when logging an application. A file path or "
+              "a full sha256 works too.")
+        return 0
+
+    if not args.pdfs:
+        ap.error("give at least one PDF, or --list")
 
     for name in args.pdfs:
         pdf = Path(name)

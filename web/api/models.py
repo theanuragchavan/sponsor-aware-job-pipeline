@@ -147,6 +147,9 @@ class LogApplicationRequest(BaseModel):
     applied_via: str = "company site"
     date_applied: str = ""
     notes: str = ""
+    #: sha256 of the CV actually attached. Checked against the attestation
+    #: store; blank fails the gate, which is overridable with a written reason.
+    cv_sha256: str = ""
     override_reason: str = ""
 
 

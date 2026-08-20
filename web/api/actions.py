@@ -17,6 +17,7 @@ we append a compensating `*.failed` entry rather than deleting anything.
 from __future__ import annotations
 
 import datetime as dt
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -102,6 +103,41 @@ class ActionResult:
             "effects": self.effects,
             "log_entry_id": self.log_entry_id,
         }
+
+
+def cv_gate_state(cv_sha256: str, store_path) -> tuple[str, str]:
+    """("pass"|"fail"|"skip", detail) for the CV actually attached.
+
+    Delegates to `pipeline/cv_gate.py` so there is exactly one definition of
+    "verified" across the CLI, the pack skill and this API.
+
+    The third state is the honest one and it matters. On the public demo there
+    is no resume repo and no attestation store, so the question "was this CV
+    verified?" has no answer — and a check with no answer must say so rather
+    than quietly return pass. That is the same discipline `verify_cv.py` already
+    applies when no `.tex` sits beside a PDF: a gate that reports results it
+    cannot justify stops being read. `skip` is recorded in the log entry, so it
+    is visible rather than absent.
+    """
+    try:
+        import cv_gate
+    except ImportError:                     # pragma: no cover - packaging slip
+        return "skip", "cv_gate unavailable"
+
+    store = cv_gate.load(Path(store_path))
+    if not store:
+        return "skip", "no attestation store on this host"
+
+    digest = (cv_sha256 or "").strip().lower()
+    if not digest:
+        return "fail", "no CV hash recorded for this application"
+    record = store.get(digest)
+    if record is None:
+        return "fail", "that exact file has never passed verify_cv.py"
+    if record.get("verify_version") != cv_gate.REQUIRED_VERSION:
+        return "fail", ("verified by an older checker (v%s), re-run verify_cv.py"
+                        % record.get("verify_version"))
+    return "pass", record.get("path", "")
 
 
 def _require_rationale(rationale: str) -> dict:
@@ -302,6 +338,7 @@ class Actions:
 
     def log_application(self, *, job_id: str, applied_via: str = "company site",
                         date_applied: str = "", notes: str = "",
+                        cv_sha256: str = "",
                         override_reason: str = "", action_id: str = "",
                         preview: bool = False, actor_id: str = "",
                         actor_name: str = "") -> ActionResult:
@@ -372,6 +409,40 @@ class Actions:
         else:
             validations.append(ok("eligible_to_apply"))
 
+        # The CV that was actually attached, identified by content.
+        #
+        # Around forty applications went out on PDFs whose text layer was
+        # unreadable. The verifier that catches it lives in the resume repo and
+        # for four days nothing ran it; `pipeline/cv_gate.py` and the pack skill
+        # close that at draft time. This closes it at record time, which is the
+        # only point the app actually controls — it cannot stop a file being
+        # uploaded to someone else's website, but it can refuse to write down
+        # that it happened without a note saying the CV was unverified.
+        #
+        # Overridable for the same reason `eligible_to_apply` is, and recorded
+        # the same way. It also earns its keep later: an application whose
+        # cv_sha256 is absent or overridden is self-identifying, so the first
+        # forty never get averaged in with the ones sent on a fixed CV.
+        cv_state, cv_detail = cv_gate_state(
+            cv_sha256, self.settings.attestations_path)
+        if cv_state == "fail":
+            if not override_reason.strip():
+                raise ActionError(
+                    "ineligible",
+                    f"That CV is not verified: {cv_detail}. Run verify_cv.py "
+                    "--attest on the exact file you attached, or override with "
+                    "a reason.",
+                    validations=validations + [
+                        fail("cv_verified", cv_detail, overridable=True)])
+            validations.append({
+                "rule": "cv_verified", "result": "fail", "detail": cv_detail,
+                "overridden": True, "override_reason": override_reason.strip()})
+        elif cv_state == "skip":
+            validations.append({"rule": "cv_verified", "result": "skipped",
+                                "detail": cv_detail})
+        else:
+            validations.append(ok("cv_verified", cv_detail or cv_sha256[:16]))
+
         mutations = {row["id"]: {
             "status": "applied", "date_applied": when,
             "applied_via": applied_via,
@@ -381,7 +452,8 @@ class Actions:
                     "after": "applied"}]
         effects = {"job_id": row["id"], "company": row.get("company", ""),
                    "title": row.get("title", ""), "date_applied": when,
-                   "applied_via": applied_via, "rows_changed": 1}
+                   "applied_via": applied_via, "rows_changed": 1,
+                   "cv_sha256": cv_sha256.strip().lower()}
 
         if preview:
             return ActionResult(applied=False, validations=validations,
@@ -393,6 +465,7 @@ class Actions:
             actor=self._actor(actor_id, actor_name),
             input={"job_id": row["id"], "applied_via": applied_via,
                    "date_applied": when, "notes": notes,
+                   "cv_sha256": cv_sha256.strip().lower(),
                    "override_reason": override_reason},
             validations=validations,
             rationale=notes.strip() or f"Applied via {applied_via}.",

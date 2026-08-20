@@ -25,6 +25,10 @@ class Settings:
     decision_log_path: Path
     contacts_path: Path
     drafts_dir: Path
+    #: Where the built CV variants live, and where verify_cv.py records which
+    #: exact files passed. Separate repo, hence a path rather than an import.
+    resume_dir: Path
+    attestations_path: Path
     register_csv: Path | None  # None -> the real cached/downloaded register
     actor_id: str
     actor_name: str
@@ -57,6 +61,11 @@ def load_settings() -> Settings:
             decision_log_path=base / "demo_decision_log.jsonl",
             contacts_path=base / "demo_contacts.json",
             drafts_dir=base / "demo_drafts",
+            # The demo has no resume repo. Both paths point inside the demo
+            # data dir and simply will not exist, which the CV check reports as
+            # "skipped" rather than inventing a pass.
+            resume_dir=base / "demo_cvs",
+            attestations_path=base / "demo_attestations.json",
             register_csv=base / "demo_register.csv",
             actor_id="visitor",
             actor_name="Demo visitor",
@@ -75,6 +84,10 @@ def load_settings() -> Settings:
         decision_log_path=data / "decision_log.jsonl",
         contacts_path=data / "contacts.json",
         drafts_dir=ADZUNA_HOME / "drafts",
+        resume_dir=Path(os.getenv("RESUME_HOME", ADZUNA_HOME.parent / "Resume")),
+        attestations_path=Path(
+            os.getenv("CV_ATTESTATIONS",
+                      ADZUNA_HOME.parent / "Resume" / ".cv_attestations.json")),
         register_csv=(Path(os.environ["SPONSOR_REGISTER_CSV"])
                       if os.getenv("SPONSOR_REGISTER_CSV") else None),
         actor_id=os.getenv("ACTOR_ID", "anurag"),

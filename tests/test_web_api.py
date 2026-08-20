@@ -74,6 +74,8 @@ def _env(*rows):
         decision_log_path=os.path.join(tmp, "log.jsonl"),
         contacts_path=os.path.join(tmp, "contacts.json"),
         drafts_dir=os.path.join(tmp, "drafts"),
+        resume_dir=os.path.join(tmp, "resume"),
+        attestations_path=os.path.join(tmp, "attestations.json"),
         register_csv=reg_path, actor_id="tester", actor_name="Tester",
         cors_origins=(), rate_limit_per_min=0, max_log_entries=0)
 
@@ -661,6 +663,107 @@ def test_saving_a_contact_keeps_its_routes():
 
 
 # --- runner -----------------------------------------------------------------
+# --- the CV gate ------------------------------------------------------------
+#
+# Around forty applications went out on PDFs whose text layer was unreadable.
+# The verifier that catches it lived in the resume repo and nothing ran it. The
+# pack skill now refuses at draft time; this refuses at record time, which is
+# the only point the app controls — it cannot stop a file being uploaded to
+# someone else's website, but it can refuse to write down that it happened
+# without a note saying the CV was never checked.
+
+def _attestations(tmp, digest=None, version=None):
+    """Write the store the fixture's Settings already points at.
+
+    Deliberately not an env var: settings.py is the only module allowed to read
+    the environment, and routing through it keeps that true.
+    """
+    path = os.path.join(tmp, "attestations.json")
+    store = {}
+    if digest:
+        # Read the current version rather than hardcoding it. A literal here
+        # goes stale the moment a new check is added and the version is bumped,
+        # which turns a deliberate invalidation into a mystery test failure.
+        from pipeline import cv_gate
+        store[digest] = {"path": "Master_Resume.pdf",
+                         "verify_version": (cv_gate.REQUIRED_VERSION
+                                            if version is None else version),
+                         "terms_checked": 16}
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(store, fh)
+    return path
+
+
+def _eligible(jid="900"):
+    return _row(jid, title="Solutions Engineer", company="Monzo",
+                sponsor_match="yes", sponsor_rating="A", source="lever")
+
+
+def test_an_attested_cv_passes_the_gate():
+    actions, _s, _l, _r, tmp = _env(_eligible())
+    _attestations(tmp, digest="a" * 64)
+    res = actions.log_application(job_id="900", cv_sha256="A" * 64)
+    rule = [v for v in res.validations if v["rule"] == "cv_verified"][0]
+    assert rule["result"] == "pass", rule
+
+
+def test_log_application_refuses_an_unverified_cv():
+    """The gate. An unattested hash must not be recordable without a reason."""
+    actions, _s, log, _r, tmp = _env(_eligible())
+    _attestations(tmp, digest="a" * 64)
+    for sent in ("", "b" * 64):
+        try:
+            actions.log_application(job_id="900", cv_sha256=sent)
+        except ActionError as exc:
+            assert exc.code == "ineligible", exc.code
+            assert any(v["rule"] == "cv_verified" and v.get("overridable")
+                       for v in exc.validations), exc.validations
+        else:
+            raise AssertionError("unverified CV %r was accepted" % sent)
+    assert log.entries() == [], "a refused action must not be recorded"
+
+
+def test_the_cv_override_is_recorded_in_the_log():
+    """Overridable, never silently. 'I sent it anyway' is a written decision."""
+    actions, _s, log, _r, tmp = _env(_eligible())
+    _attestations(tmp, digest="a" * 64)
+    actions.log_application(
+        job_id="900", cv_sha256="",
+        override_reason="Applied by email before the gate existed.")
+    entry = log.entries()[-1]
+    rule = [v for v in entry["validations"] if v["rule"] == "cv_verified"][0]
+    assert rule["result"] == "fail" and rule["overridden"] is True, rule
+    assert "before the gate existed" in rule["override_reason"]
+
+
+def test_the_cv_hash_lands_in_the_log_entry():
+    """The field that quarantines the first forty.
+
+    Without it no later analysis can separate 'rejected by a company that was
+    never going to hire me' from 'rejected because they got an unreadable PDF'.
+    """
+    actions, _s, log, _r, tmp = _env(_eligible())
+    _attestations(tmp, digest="a" * 64)
+    actions.log_application(job_id="900", cv_sha256="A" * 64)
+    entry = log.entries()[-1]
+    assert entry["effects"]["cv_sha256"] == "a" * 64
+    assert entry["input"]["cv_sha256"] == "a" * 64
+
+
+def test_no_attestation_store_is_skipped_not_passed():
+    """The demo has no resume repo. A check with no answer must say so.
+
+    Returning 'pass' would be the worst option: the public deployment would
+    silently certify every CV it has never seen, and the validation record would
+    read identically to a real one.
+    """
+    actions, _s, _l, _r, tmp = _env(_eligible())
+    _attestations(tmp)                      # store exists but is empty
+    res = actions.log_application(job_id="900", cv_sha256="")
+    rule = [v for v in res.validations if v["rule"] == "cv_verified"][0]
+    assert rule["result"] == "skipped", rule
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

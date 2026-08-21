@@ -322,14 +322,45 @@ def lever_row(raw, board):
     )
 
 
+def smartrecruiters_row(raw, board):
+    """Map one SmartRecruiters posting.
+
+    `location` is a dict with a prebuilt `fullLocation` that carries stray
+    double commas ("London, , United Kingdom"), so it is rebuilt from parts.
+    The list endpoint has no description field (see clients.fetch_smartrecruiters).
+    The public apply URL is not in the payload either; `ref` is the API link, so
+    the jobs.smartrecruiters.com pattern is constructed from the company
+    identifier and posting id.
+    """
+    loc = raw.get("location") or {}
+    parts = [loc.get("city"), loc.get("region"), loc.get("country", "").upper()]
+    location = ", ".join(p for p in parts if p)
+    if loc.get("remote"):
+        location = f"{location}; Remote" if location else "Remote"
+    ident = (raw.get("company") or {}).get("identifier") or ""
+    jid = raw.get("id", "")
+    url = (f"https://jobs.smartrecruiters.com/{ident}/{jid}" if ident and jid
+           else raw.get("ref", ""))
+    return _base_row(
+        board, jid, "sr",
+        raw.get("name"), location, url,
+        to_date(raw.get("releasedDate")),
+        contract=_contract((raw.get("typeOfEmployment") or {}).get("id")),
+        category=((raw.get("department") or {}).get("label")
+                  or (raw.get("function") or {}).get("label") or ""),
+    )
+
+
 MAPPERS = {
     "greenhouse": greenhouse_row,
     "ashby": ashby_row,
     "lever": lever_row,
+    "smartrecruiters": smartrecruiters_row,
 }
 
 # Row-id prefix per family, so ats_main can spot a board's own rows.
-PREFIXES = {"greenhouse": "gh", "ashby": "ashby", "lever": "lever"}
+PREFIXES = {"greenhouse": "gh", "ashby": "ashby", "lever": "lever",
+            "smartrecruiters": "sr"}
 
 
 def to_row(family, raw, board):

@@ -129,10 +129,52 @@ def fetch_lever(slug):
     return "", data
 
 
+def fetch_smartrecruiters(slug):
+    """Return (company_name, jobs) from a SmartRecruiters posting board.
+
+    Two traps here, both confirmed live on 2026-08-21, and both invisible if
+    you only look at the status code:
+
+    1. There is no 404. An unknown slug answers 200 with
+       {"totalFound": 0, "content": []} — byte-identical to a real board with
+       nothing open today. So this fetcher CANNOT distinguish "no such board"
+       from "empty board", and deliberately does not try: it returns an empty
+       list and lets boards.py keep the registry entry. Probing for discovery
+       against this endpoint is therefore worthless; add slugs by hand.
+    2. The slug is not a company. `palantir` here is a C# consultancy in
+       Westhill, Aberdeen, not Palantir Technologies. Every posting carries
+       company.name, so the caller can check it against register_name.
+
+    Postings carry no description; that needs one extra call per job via `ref`.
+    Following fetch_greenhouse's one-call rule, we skip it and leave the field
+    empty rather than multiplying requests against someone else's free endpoint.
+    """
+    quoted = urllib.parse.quote(slug, safe="")
+    jobs, offset, limit = [], 0, 100
+    while True:
+        url = ("https://api.smartrecruiters.com/v1/companies/%s/postings"
+               "?limit=%d&offset=%d" % (quoted, limit, offset))
+        data = _get_json(url)
+        if not isinstance(data, dict) or "content" not in data:
+            raise BoardNotFound(f"no SmartRecruiters board at {slug}")
+        page = data.get("content") or []
+        jobs.extend(page)
+        offset += limit
+        total = data.get("totalFound") or 0
+        if len(jobs) >= total or not page or offset > 2000:
+            break
+        time.sleep(0.5)          # their endpoint, their bandwidth
+    company = ""
+    if jobs:
+        company = (jobs[0].get("company") or {}).get("name") or ""
+    return company, jobs
+
+
 FETCHERS = {
     "greenhouse": fetch_greenhouse,
     "ashby": fetch_ashby,
     "lever": fetch_lever,
+    "smartrecruiters": fetch_smartrecruiters,
 }
 
 

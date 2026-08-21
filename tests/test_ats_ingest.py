@@ -300,6 +300,24 @@ LEVER_JOB = {
 }
 
 
+# Copied from a live SmartRecruiters response on 2026-08-21. Note `location` is
+# a dict whose own `fullLocation` carries stray double commas, and the posting
+# has no description field at all.
+SR_JOB = {
+    "id": "743999683157028",
+    "name": "Graduate Software Engineer",
+    "company": {"identifier": "Example", "name": "Example Ltd"},
+    "releasedDate": "2026-08-19T10:53:21.000Z",
+    "location": {"city": "London", "country": "gb", "remote": False,
+                 "fullLocation": "London, , United Kingdom"},
+    "department": {},
+    "function": {"id": "information_technology",
+                 "label": "Information Technology"},
+    "typeOfEmployment": {"id": "permanent", "label": "Full-time"},
+    "ref": "https://api.smartrecruiters.com/v1/companies/example/postings/743999683157028",
+}
+
+
 def test_every_family_produces_an_identical_row_shape():
     """One missing key crashes main.py's summary after the store is written."""
     rows = [
@@ -352,9 +370,28 @@ def test_prefixes_table_matches_what_the_mappers_emit():
     """
     for family, prefix in mapping.PREFIXES.items():
         job = {"greenhouse": GH_JOB, "ashby": ASHBY_JOB,
-               "lever": LEVER_JOB}[family]
+               "lever": LEVER_JOB, "smartrecruiters": SR_JOB}[family]
         assert mapping.to_row(family, job, BOARD)["id"].startswith(
             prefix + ":"), family
+
+
+def test_smartrecruiters_location_drops_the_empty_region_segment():
+    """Their own fullLocation is "London, , United Kingdom" — a double comma.
+
+    Rebuilding from parts is why mapping does not simply pass fullLocation
+    through; an empty region must not become a stray comma in the store.
+    """
+    row = mapping.to_row("smartrecruiters", SR_JOB, BOARD)
+    assert row["location"] == "London, GB"
+    assert ", ," not in row["location"]
+
+
+def test_smartrecruiters_gets_a_public_apply_url_not_the_api_ref():
+    """`ref` is an api.smartrecruiters.com link, which a human cannot apply on."""
+    row = mapping.to_row("smartrecruiters", SR_JOB, BOARD)
+    assert row["redirect_url"] == (
+        "https://jobs.smartrecruiters.com/Example/743999683157028")
+    assert "api.smartrecruiters.com" not in row["redirect_url"]
 
 
 # --- board registry ---------------------------------------------------------

@@ -20,3 +20,13 @@ REM Gone once an ad is pulled, so a stale link can otherwise sit at the top of
 REM the briefing for weeks. Verdicts are cached, so the daily cost is only the
 REM handful of ids that are new that morning.
 "C:\path\to\python.exe" pipeline\shortlist.py --top 10 --write --verify-live
+
+REM Integrity check: does the tracker still agree with the decision log?
+REM The log is append-only and hash-chained, so it is the reference. On
+REM 2026-08-16 an application to Snowflake was logged and the tracker ended up
+REM back at status=new -- which put a job already applied to back at #2 on the
+REM shortlist, for five days, because disqualify() only drops non-new rows.
+REM Nothing noticed, because nothing was asking. Now something asks daily.
+REM Reports only: exit 1 means drift, exit 2 means it could not check, and
+REM neither should stop the morning briefing that already ran above.
+"C:\path\to\python.exe" reconcile_audit.py

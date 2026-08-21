@@ -198,6 +198,26 @@ class Actions:
         return [r for r in self.store.rows().values()
                 if sponsor_check.normalize_name(r.get("company", "")) == key]
 
+    @staticmethod
+    def _for_log(effects: dict) -> dict:
+        """Effects minus `rows_changed`, which is a prediction at record time.
+
+        The entry is written before the store, deliberately: an entry with no
+        corresponding change is recoverable evidence, a change with no entry is
+        an untraceable mutation. But that ordering means the row count cannot
+        be known yet, and logging the prediction as though it were a
+        measurement made the log assert writes it never witnessed. Seq 7 says
+        `rows_changed: 1` for the Snowflake application the tracker has no
+        record of -- the one number in that entry that was never true.
+
+        The measured count still reaches the caller, and a preview still
+        carries its prediction. It just stops being hashed into the
+        tamper-evident record as a fact nobody checked. Whether the write
+        actually landed is answered by `reconcile_audit.py`, which compares
+        the log's `after` block against the store.
+        """
+        return {k: v for k, v in effects.items() if k != "rows_changed"}
+
     def _write_store(self, mutations: dict, entry: dict) -> int:
         """Persist, and on a lock append a compensating entry before raising."""
         try:
@@ -323,7 +343,7 @@ class Actions:
                    "source_rule": source_rule, "supersede": supersede,
                    "acknowledge_agency": acknowledge_agency},
             validations=validations, rationale=rationale.strip(),
-            effects=effects,
+            effects=self._for_log(effects),
             before={r["id"]: {"sponsor_match": r.get("sponsor_match", "")}
                     for r in rows if r["id"] in mutations},
             after={jid: {"sponsor_match": "yes"} for jid in mutations},
@@ -481,7 +501,7 @@ class Actions:
                    "override_reason": override_reason},
             validations=validations,
             rationale=notes.strip() or f"Applied via {applied_via}.",
-            effects=effects,
+            effects=self._for_log(effects),
             before={row["id"]: {"status": row.get("status", "")}},
             after={row["id"]: {"status": "applied"}},
             action_id=action_id)
@@ -565,7 +585,7 @@ class Actions:
             input={"job_id": row["id"], "status": target, "note": note},
             validations=validations,
             rationale=note.strip() or f"Moved from {before} to {target}.",
-            effects=effects,
+            effects=self._for_log(effects),
             before={row["id"]: {"status": before}},
             after={row["id"]: {"status": target}},
             action_id=action_id)

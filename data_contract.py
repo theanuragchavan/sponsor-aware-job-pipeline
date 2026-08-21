@@ -44,6 +44,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     # ingest
     "adzuna_client.py",
     "reed_client.py",
+    "hn_hiring.py",
     "ats_main.py",
     "main.py",
     "ats/",
@@ -55,6 +56,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "pipeline/shortlist.py",
     "pipeline/cv_gate.py",
     "pipeline/verify_claims.py",
+    "pipeline/outcomes.py",
     "pipeline/liveness.py",
     "scripts/",
     "package/",
@@ -132,6 +134,7 @@ USER_PATHS: tuple[str, ...] = (
     "data/sponsors_register_meta.json",
     "data/call_counter.json",
     "data/ats_call_counter.json",
+    "data/reed_call_counter.json",
     "data/ats_closed.json",
     # output
     "drafts/",

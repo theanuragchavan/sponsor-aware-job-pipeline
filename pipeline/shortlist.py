@@ -267,9 +267,20 @@ def score(row: dict) -> tuple[int, list[str]]:
         points -= 20
         why.append(f"salary floor £{smin:,} suggests senior")
 
-    seen = parse_date(row.get("date_first_seen", "") or row.get("posted_date", ""))
-    if seen:
-        age = (datetime.now(timezone.utc).replace(tzinfo=None) - seen).days
+    # Through age_days() so the ranking and the line printed above it cannot
+    # disagree. They did: this read date_first_seen first while age_days reads
+    # posted_date first, so the top two candidates on 2026-08-20 were Palantir
+    # requisitions displayed as "384d ago" and "833d ago" while being scored
+    # +10 for "posted this week" -- the briefing telling the truth and the
+    # ranking rewarding the opposite, in the same block of output.
+    #
+    # posted_date is the right one to prefer: it is when the employer posted
+    # the ad. date_first_seen is when this pipeline noticed, which for the
+    # 2026-08-14 ATS backfill was the same day for 235 rows regardless of how
+    # old the postings were, so preferring it scores an ingest event as
+    # freshness.
+    age = age_days(row)
+    if age is not None:
         if age <= 7:
             points += 10
             why.append("posted this week")

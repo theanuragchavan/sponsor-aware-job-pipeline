@@ -81,6 +81,39 @@ def test_rows_from_an_employers_own_board_ignore_the_age_gate():
     assert shortlist.disqualify(_row(age_days=90), max_age=30) is not None
 
 
+def test_the_ranking_and_the_displayed_age_agree():
+    """score() must not reward an ad that age_days() calls old.
+
+    They disagreed: score() read date_first_seen first, age_days() read
+    posted_date first. On 2026-08-20 that put two Palantir requisitions at the
+    top of the briefing, printed as "384d ago" and "833d ago", each scored +10
+    for "posted this week".
+
+    The trigger is any row where the two dates differ a lot, which the
+    2026-08-14 ATS backfill produced 235 of in one morning: an old posting
+    first seen today.
+    """
+    old_ad_seen_today = _row(
+        posted_date=(datetime.now() - timedelta(days=385)).strftime("%Y-%m-%d"),
+        date_first_seen=datetime.now().strftime("%Y-%m-%d"))
+
+    assert shortlist.age_days(old_ad_seen_today) >= 380
+    points, why = shortlist.score(old_ad_seen_today)
+    assert "posted this week" not in why, why
+    assert any("d old" in w for w in why), why
+
+
+def test_a_genuinely_fresh_ad_still_earns_the_bonus():
+    """The fix must not cost the signal it was guarding."""
+    _, why = shortlist.score(_row(age_days=2))
+    assert "posted this week" in why, why
+
+
+def test_an_undateable_row_is_neither_rewarded_nor_penalised_for_age():
+    _, why = shortlist.score(_row(posted_date="", date_first_seen=""))
+    assert not any("posted this week" in w or "d old" in w for w in why), why
+
+
 def test_age_gate_does_not_override_the_other_disqualifiers():
     row = _row(title="Senior Solutions Engineer", age_days=1)
     assert "seniority" in shortlist.disqualify(row, max_age=30)

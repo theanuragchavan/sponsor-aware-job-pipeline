@@ -84,6 +84,13 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "requirements-web.txt",
     "run_tracker.bat.example",
     "README.md",
+    # Research, not personal data: public API endpoints, measured status codes
+    # and two verified false-positive traps. It sits in the system layer because
+    # it describes the world rather than him -- and because this repo is public,
+    # so "who wrote it" is the wrong test for whether it can ship. The right one
+    # is whether it would embarrass in a screenshot, and a list of job-board
+    # endpoints would not.
+    "JOB_SOURCES.md",
     "data_contract.py",
     "package.py",
     ".gitignore",
@@ -96,7 +103,6 @@ SYSTEM_PATHS: tuple[str, ...] = (
 USER_PATHS: tuple[str, ...] = (
     # the constitution and the research behind it
     "CLAUDE.md",
-    "JOB_SOURCES.md",
     "adzuna_tracker_brief.md",
     "STATUS_adzuna_resume_2026-06-29.md",
     # the store, and the frozen snapshot that is not the store

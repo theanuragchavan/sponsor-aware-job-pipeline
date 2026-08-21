@@ -43,6 +43,7 @@ ROOT = Path(__file__).resolve().parent
 SYSTEM_PATHS: tuple[str, ...] = (
     # ingest
     "adzuna_client.py",
+    "reed_client.py",
     "ats_main.py",
     "main.py",
     "ats/",
@@ -141,6 +142,37 @@ USER_PATHS: tuple[str, ...] = (
     "runs/",
     # machine-specific
     "run_tracker.bat",
+)
+
+#: The subset of USER_PATHS that must never reach a remote.
+#:
+#: User-layer and personal are two different properties and conflating them was
+#: a modelling error that a test caught on 2026-08-21. `data/ats_boards.csv` is
+#: hand-curated, so an update must not overwrite it -- that is what makes it
+#: user-layer. It is also just a company-to-ATS-slug mapping, so tracking it in
+#: a public repo costs nothing. Meanwhile `data/screening.yml` is both.
+#:
+#: The distinction matters because the first version of the guard asserted that
+#: every user path is gitignored, which would have forced `ats_boards.csv` out
+#: of git to satisfy a rule it never needed to obey.
+PERSONAL_PATHS: tuple[str, ...] = (
+    "CLAUDE.md",
+    "jobs_tracker_beautified.xlsx",
+    "jobs_tracker.csv",
+    "data/screening.yml",
+    "data/decision_log.jsonl",
+    "data/sponsor_aliases.json",
+    "data/contacts.json",
+    "pipeline/decisions.json",
+    "pipeline/profile.md",
+    "pipeline/sponsor_review.md",
+    "pipeline/shortlists/",
+    "drafts/",
+    "packages/",
+    "runs/",
+    "logs/",
+    "adzuna_tracker_brief.md",
+    "STATUS_adzuna_resume_2026-06-29.md",
 )
 
 # --- secrets ----------------------------------------------------------------

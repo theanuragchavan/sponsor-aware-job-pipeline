@@ -76,6 +76,62 @@ def test_the_tool_is_system():
             f"{rel} must be system-layer, got {data_contract.classify(rel)!r}"
 
 
+def test_every_personal_path_that_exists_is_gitignored():
+    """The check that was missing on 2026-08-21, and it cost a public push.
+
+    `data/screening.yml` and `packages/` were classified user-layer correctly,
+    every test passed, and both went to a public GitHub repo carrying work
+    authorisation, a disclosure field, a CV and a cover-letter draft.
+
+    Nothing was wrong with the contract. The contract answers "does this travel
+    into an export"; `.gitignore` answers "does this go to a remote". Two
+    mechanisms, two different questions, and adding a new personal-data path
+    updated only one of them. `data/` is not blanket-ignored -- it lists
+    specific files -- so a new one lands tracked by default.
+
+    This makes the two check each other. A user-layer path that git would
+    track is now a red test rather than a discovery after the fact.
+    """
+    import subprocess
+
+    root = Path(data_contract.ROOT)
+    if not (root / ".git").exists():
+        return                                  # not a checkout; nothing to check
+
+    existing = [spec for spec in data_contract.PERSONAL_PATHS
+                if (root / spec.rstrip("/")).exists()]
+    assert existing, "no personal paths on disk -- the test proves nothing"
+
+    tracked = subprocess.run(  # nosec B603,B607 - fixed argv, no shell
+        ["git", "ls-files", "--"] + [s.rstrip("/") for s in existing],
+        capture_output=True, text=True, cwd=root).stdout.split()
+
+    assert not tracked, (
+        f"{len(tracked)} personal file(s) are tracked by git and would go to "
+        f"the remote: {tracked[:10]}")
+
+
+def test_personal_paths_are_a_subset_of_user_paths():
+    """Personal implies user-layer. Something an update may overwrite cannot
+    also be something too sensitive to publish."""
+    stray = [p for p in data_contract.PERSONAL_PATHS
+             if p not in data_contract.USER_PATHS]
+    assert not stray, f"personal but not user-layer: {stray}"
+
+
+def test_secrets_are_never_tracked():
+    """Stronger than the layer check: git must not know about them at all."""
+    import subprocess
+
+    root = Path(data_contract.ROOT)
+    if not (root / ".git").exists():
+        return
+    tracked = subprocess.run(  # nosec B603,B607
+        ["git", "ls-files", "--"] + list(data_contract.SECRET_PATHS),
+        capture_output=True, text=True, cwd=root).stdout.split()
+    assert not tracked, f"secrets tracked by git: {tracked}"
+
+
 def test_secrets_are_in_neither_layer():
     """.env is never exported.
 

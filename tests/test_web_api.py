@@ -759,11 +759,17 @@ def test_a_cv_can_be_named_and_the_log_still_gets_the_digest():
     precisely to separate applications sent on a broken CV from ones sent on a
     verified one.
     """
+    from pipeline import cv_gate
     actions, _s, log, _r, tmp = _env(_eligible())
     path = os.path.join(tmp, "attestations.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"c" * 64: {"path": "Anurag_Chavan_Resume_AI_ML.pdf",
-                              "verify_version": 3,
+                              # Track the constant, never a literal. Pinning 3
+                              # here made this the only test that broke when
+                              # verify_cv gained its icon-glyph check and the
+                              # contract moved to v4 -- a fixture asserting a
+                              # stale version tests nothing but its own age.
+                              "verify_version": cv_gate.REQUIRED_VERSION,
                               "attested_at": "2026-08-20T02:00:00+01:00"}}, fh)
 
     res = actions.log_application(job_id="900", cv_sha256="aiml")

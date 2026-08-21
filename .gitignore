@@ -66,3 +66,14 @@ data/contacts.json
 
 # Outreach drafts: real names, and messages that are his to send.
 drafts/
+
+# Personal answers to application-form questions: visa status, salary floor,
+# disclosure fields. Pushed to this PUBLIC repo by accident on 2026-08-21 --
+# data_contract classified it user-layer correctly, but the contract governs
+# the packager, not git. Two mechanisms, and only one of them was updated.
+data/screening.yml
+
+# Per-job handoff bundles: a CV, a cover letter, a JD and the gate verdict.
+# Outputs, not source, and personal either way.
+packages/
+runs/

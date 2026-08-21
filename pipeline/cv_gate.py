@@ -42,7 +42,7 @@ ADZUNA_HOME = Path(__file__).resolve().parent.parent
 # and a mismatch should fail loudly rather than be papered over by an import.
 # Raising it there invalidates every stored attestation, which is the point —
 # a PDF attested before a check existed was never subjected to it.
-REQUIRED_VERSION = 3
+REQUIRED_VERSION = 4
 
 
 def attestations_path() -> Path:

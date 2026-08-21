@@ -56,6 +56,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "pipeline/verify_claims.py",
     "pipeline/liveness.py",
     "scripts/",
+    "package/",
     "pipeline/sponsor_review.py",
     "pipeline/__init__.py",
     # the prompt layer
@@ -94,7 +95,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     # endpoints would not.
     "JOB_SOURCES.md",
     "data_contract.py",
-    "package.py",
+    "export.py",
     ".gitignore",
     ".github/",
 )
@@ -120,6 +121,11 @@ USER_PATHS: tuple[str, ...] = (
     "data/decision_log.jsonl",
     "data/ats_boards.csv",
     "data/contacts.json",
+    # His answers to form questions. Personal by definition -- salary
+    # floor, visa status, location -- so it lives with the rest of the
+    # personal data and is gitignored. It travels in a full export
+    # because condition 8 of the autosubmit gate cannot work without it.
+    "data/screening.yml",
     # caches and counters: regenerable, but not by the packager
     "data/sponsors_register.csv",
     "data/sponsors_register_meta.json",
@@ -129,6 +135,10 @@ USER_PATHS: tuple[str, ...] = (
     # output
     "drafts/",
     "logs/",
+    # Per-job artifacts. A record of what was prepared and what came
+    # back, so an update must never regenerate over them.
+    "packages/",
+    "runs/",
     # machine-specific
     "run_tracker.bat",
 )

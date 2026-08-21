@@ -196,13 +196,33 @@ def main(argv=None) -> int:
 
     for name in args.pdfs:
         pdf = Path(name)
-        ok, reason = verdict(pdf, store)
+        if pdf.exists():
+            ok, reason = verdict(pdf, store)
+            label = pdf.name
+        else:
+            # Not a path. `resolve` already accepts the forms a person actually
+            # has to hand -- a short build name, a digest -- and --list prints
+            # them, so the CLI accepting only paths made the documented
+            # invocation fail on the documented input.
+            digest, how = resolve(name, store)
+            if digest:
+                record = store.get(digest, {})
+                ok = record.get("verify_version") == REQUIRED_VERSION
+                reason = ("attested (built as %s)" % record.get("path", "")
+                          if ok else
+                          "attested by verify_cv v%s, current is v%d -- "
+                          "re-verify" % (record.get("verify_version"),
+                                         REQUIRED_VERSION))
+            else:
+                ok, reason = False, how
+            label = name
+
         if ok:
             if not args.quiet:
-                print("OK    %-46s %s" % (pdf.name, reason))
+                print("OK    %-46s %s" % (label, reason))
         else:
             failed += 1
-            print("BLOCK %-46s %s" % (pdf.name, reason))
+            print("BLOCK %-46s %s" % (label, reason))
 
     if failed:
         print()

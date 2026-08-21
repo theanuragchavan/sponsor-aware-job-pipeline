@@ -53,7 +53,9 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "config.py",
     "pipeline/shortlist.py",
     "pipeline/cv_gate.py",
+    "pipeline/verify_claims.py",
     "pipeline/liveness.py",
+    "scripts/",
     "pipeline/sponsor_review.py",
     "pipeline/__init__.py",
     # the prompt layer

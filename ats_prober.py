@@ -124,7 +124,8 @@ def slug_variants(company: str) -> list[str]:
     return unique
 
 
-def match_strength(company: str, board_name: str) -> str:
+def match_strength(company: str, board_name: str,
+                   slug: str = "") -> str:
     """How well the board's own name matches the one searched for.
 
     Returns "exact", "loose", or "" for a rejection.
@@ -143,13 +144,23 @@ def match_strength(company: str, board_name: str) -> str:
     So this grades instead of guessing, which is the posture the rest of the
     module already takes -- it proposes rows and a human accepts them. An exact
     match is proposed; a loose one is shown with sample postings and left for
-    a person to judge. Ashby reports no company name at all, which is loose by
-    definition rather than a free pass.
+    a person to judge. When a family reports no name at all, the slug carries
+    the evidence instead -- see the comment below.
     """
     a = re.sub(r"[^a-z0-9]", "", (company or "").lower())
     b = re.sub(r"[^a-z0-9]", "", (board_name or "").lower())
     if not b:
-        return "loose"          # the family told us nothing; slug alone
+        # Ashby reports no company name at all, so a first version graded every
+        # Ashby hit "loose" -- eight of eleven findings in a 150-company sweep,
+        # which is an artifact of the family rather than eight doubtful results.
+        # With no name to check, the slug is the evidence: one that spells the
+        # company out in full ("zilch", "maya-htt", "tracebit") is as good as a
+        # name match, while one that dropped a word ("amber" for Amber Labs,
+        # "raspberry" for Raspberry Pi Foundation) is the case that actually
+        # needs a person. That split takes the review pile from eight to three.
+        if slug and slug.lower() in {v for v in slug_variants(company)[:2]}:
+            return "exact"
+        return "loose"
     if not a:
         return ""
     if a == b:
@@ -186,7 +197,7 @@ def probe_company(company: str, *, throttle: float = THROTTLE,
             # Parsed and non-empty. Never the status code.
             if not jobs:
                 continue
-            strength = match_strength(company, board_name)
+            strength = match_strength(company, board_name, slug)
             if not strength:
                 if verbose:
                     print(f"    {family}/{slug}: {board_name!r} is a different "

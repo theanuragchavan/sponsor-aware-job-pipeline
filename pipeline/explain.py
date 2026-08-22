@@ -72,9 +72,11 @@ def find_rows(query: str, rows: list[dict]) -> list[dict]:
             hit = [r for r in rows if longest in str(r.get("id", ""))]
             if hit:
                 return hit
-        # Fall through: an Ashby URL carries a uuid, and the stored `url` is
-        # then the only thing to match on.
-        return [r for r in rows if q.rstrip("/") in (r.get("url") or "")]
+        # Fall through: an Ashby URL carries a uuid, so the stored link is
+        # the only thing left to match on. The column is `redirect_url`;
+        # `url` reads as empty on all 3,815 rows and fails silently.
+        return [r for r in rows
+                if q.rstrip("/") in (r.get("redirect_url") or "")]
 
     exact = [r for r in rows if str(r.get("id", "")).strip() == q]
     if exact:
@@ -196,8 +198,8 @@ def main(argv=None) -> int:
     print(f"id {row.get('id')}   source {row.get('source','?')}   "
           f"posted {row.get('posted_date') or '?'}   "
           f"first seen {row.get('date_first_seen') or '?'}")
-    if row.get("url"):
-        print(row["url"])
+    if row.get("redirect_url"):
+        print(row["redirect_url"])
     print()
 
     for name, ok, detail in checks:

@@ -26,7 +26,7 @@ def _row(**over):
     row = {"id": "123456789", "company": "Palantir",
            "title": "Forward Deployed Software Engineer",
            "sponsor_match": "yes", "status": "new", "source": "lever",
-           "url": "https://jobs.lever.co/palantir/abc", "tier": "1",
+           "redirect_url": "https://jobs.lever.co/palantir/abc", "tier": "1",
            "posted_date": "2026-08-01", "date_first_seen": "2026-08-01",
            "location": "London"}
     row.update(over)
@@ -54,8 +54,13 @@ def test_a_url_is_matched_by_its_longest_digit_run():
 
 
 def test_a_url_with_no_id_falls_back_to_the_stored_url():
-    """Ashby URLs carry a uuid, not a number."""
-    rows = [_row(id="ashby:x", url="https://jobs.ashbyhq.com/monzo/uuid-here")]
+    """Ashby URLs carry a uuid, not a number.
+
+    The column is `redirect_url`. Matching on `url` silently found nothing on
+    every one of the 3,815 real rows.
+    """
+    rows = [_row(id="ashby:x",
+                 redirect_url="https://jobs.ashbyhq.com/monzo/uuid-here")]
     assert explain.find_rows("https://jobs.ashbyhq.com/monzo/uuid-here", rows)
 
 

@@ -89,9 +89,31 @@ def test_a_different_company_is_rejected_outright():
         "Palantir Technologies", "Aberdeen C# Consulting") == ""
 
 
-def test_a_family_that_reports_no_name_is_loose_never_exact():
-    """Ashby returns no company name. Absence of contradiction is not
-    confirmation."""
+def test_with_no_board_name_a_full_slug_is_as_good_as_a_name_match():
+    """Ashby reports no company name, and grading every Ashby hit "loose" made
+    eight of eleven findings in a 150-company sweep look doubtful when the real
+    cause was the family. A slug spelling the company out in full is evidence.
+    """
+    assert ats_prober.match_strength("Zilch", "", "zilch") == "exact"
+    assert ats_prober.match_strength("Maya HTT", "", "maya-htt") == "exact"
+
+
+def test_with_no_board_name_a_slug_that_dropped_a_word_still_needs_a_person():
+    """"amber" for Amber Labs could be any Amber. This is the case review is
+    for, and separating it took the pile from eight to three."""
+    assert ats_prober.match_strength("Amber Labs", "", "amber") == "loose"
+    assert ats_prober.match_strength(
+        "Raspberry Pi Foundation", "", "raspberry") == "loose"
+
+
+def test_a_reported_name_still_outranks_the_slug():
+    """Universal Music must not be rescued by its slug matching."""
+    assert ats_prober.match_strength(
+        "Universal Music", "Universal", "universal") == "loose"
+
+
+def test_no_name_and_no_slug_is_loose_never_exact():
+    """Absence of contradiction is not confirmation."""
     assert ats_prober.match_strength("Anything At All", "") == "loose"
 
 

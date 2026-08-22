@@ -192,6 +192,31 @@ def build_saved_searches():
     return searches
 
 
+# --- Reed.co.uk (second aggregator) ----------------------------------------
+# Reed is additive rather than a replacement: it has a real server-side
+# contract-type filter, which Adzuna lacks, so "permanent only" is enforced by
+# the API instead of by discarding rows we already paid for.
+#
+# It keeps its own budget. DAILY_CALL_CAP guards the *Adzuna* free tier, and
+# spending that on a different API would starve the daily search run.
+#
+# REED_MAX_DAYS_OLD exists because Reed's search has NO posted-since parameter
+# at all. Without a client-side age filter the first run backfills months of
+# stale ads into a tracker whose whole premise is "what appeared this week".
+REED_ENABLED = True
+REED_MAX_PAGES = 1            # 19 distinct keyword/tier pairs -> ~19 calls
+REED_PER_PAGE = 100           # Reed's own ceiling
+REED_DAILY_CALL_CAP = 60
+REED_MAX_DAYS_OLD = SHARED["max_days_old"]   # keep both sources on one clock
+
+# Reed is agency-heavy. Measured 2026-08-21 on "Forward Deployed Engineer":
+#   unfiltered                 96 results, 10 sponsor-confirmed (10%)
+#   postedByDirectEmployer     13 results,  8 sponsor-confirmed (61%)
+# Six times the precision, a seventh of the volume, and two sponsor-confirmed
+# jobs lost. Reed's own flag is imperfect either way -- head-hunting firms still
+# come back as "direct employer" -- so this is a recall/noise dial, not a fix.
+REED_DIRECT_EMPLOYER_ONLY = False
+
 SAVED_SEARCHES = build_saved_searches()
 
 

@@ -17,6 +17,7 @@ import time
 
 import adzuna_client
 import config
+import reed_client
 import sponsor_check
 import tracker
 
@@ -142,8 +143,122 @@ def run():
             if page < config.MAX_PAGES_PER_SEARCH:
                 time.sleep(config.SLEEP_SECONDS)
 
+    if config.REED_ENABLED:
+        new_rows.extend(_run_reed(tracked, lookup))
+
     tracker.save_tracker(config.JOBS_XLSX, tracked)
     _print_summary(new_rows, tracked, calls_today, skipped_noise)
+
+
+# --- Reed -------------------------------------------------------------------
+REED_COUNTER = os.path.join(sponsor_check.DATA_DIR, "reed_call_counter.json")
+
+
+def _reed_calls(value=None):
+    """Read (or write) today's Reed call count. Separate from the Adzuna cap."""
+    today = dt.date.today().isoformat()
+    if value is None:
+        try:
+            with open(REED_COUNTER, encoding="utf-8") as fh:
+                data = json.load(fh)
+            return data.get("count", 0) if data.get("date") == today else 0
+        except (OSError, ValueError):
+            return 0
+    with open(REED_COUNTER, "w", encoding="utf-8") as fh:
+        json.dump({"date": today, "count": value}, fh)
+    return value
+
+
+def _too_old(row, max_days):
+    """True if the ad is older than the window.
+
+    Reed's search has no posted-since parameter, so this is the only thing
+    stopping a first run from backfilling months of stale ads. A blank or
+    unparseable date is KEPT: dropping it would silently discard real jobs
+    because of a formatting quirk.
+    """
+    posted = row.get("posted_date") or ""
+    if not posted:
+        return False
+    try:
+        age = (dt.date.today() - dt.date.fromisoformat(posted)).days
+    except ValueError:
+        return False
+    return age > max_days
+
+
+def _run_reed(tracked, lookup):
+    """Fetch Reed for every distinct keyword/tier pair. Returns new rows.
+
+    Dedupe is by (keywords, tier) because config runs some Tier 2 keywords
+    twice, once per Adzuna category. Reed has no category concept, so running
+    both would spend two calls to fetch the same page.
+    """
+    calls = _reed_calls()
+    if calls >= config.REED_DAILY_CALL_CAP:
+        logger.warning("Reed: already made %d calls today (cap %d) — skipping.",
+                       calls, config.REED_DAILY_CALL_CAP)
+        return []
+
+    seen_pairs, new_rows, stale, filtered = set(), [], 0, 0
+    for search in config.SAVED_SEARCHES:
+        pair = (search["keywords"], str(search["tier"]))
+        if pair in seen_pairs:
+            continue
+        seen_pairs.add(pair)
+
+        if calls >= config.REED_DAILY_CALL_CAP:
+            logger.warning("Reed: hit daily cap (%d) — stopping early.",
+                           config.REED_DAILY_CALL_CAP)
+            break
+        try:
+            jobs = reed_client.search_jobs(
+                keywords=search["keywords"],
+                location=search["location"],
+                distance=search["distance"],
+                contract_type=search["contract_type"],
+                max_pages=config.REED_MAX_PAGES,
+                per_page=config.REED_PER_PAGE,
+                direct_employer_only=config.REED_DIRECT_EMPLOYER_ONLY,
+            )
+        except reed_client.ReedAuthError as exc:
+            # The key is wrong or absent. Retrying every keyword would make 19
+            # identical failures, so stop the whole Reed leg and let Adzuna's
+            # results still be saved.
+            logger.error("Reed disabled for this run: %s", exc)
+            break
+        except Exception:
+            logger.exception("Reed search failed for %r — continuing",
+                             search["keywords"])
+            continue
+        calls += 1
+        _reed_calls(calls)
+
+        batch = []
+        for raw in jobs:
+            row = reed_client.to_row(raw, tier=search["tier"])
+            if row["id"] in tracked:
+                continue
+            reason = tracker.unsuitable_reason(row["title"])
+            if reason:
+                logger.info("  filtered (%s): %s @ %s", reason,
+                            row["title"], row["company"])
+                filtered += 1
+                continue
+            if _too_old(row, config.REED_MAX_DAYS_OLD):
+                stale += 1
+                continue
+            batch.append(tracker.attach_sponsorship(row, lookup))
+
+        found = tracker.merge_rows(tracked, batch)
+        new_rows.extend(found)
+        logger.info("Reed T%s '%s': %d results, %d new",
+                    search["tier"], search["keywords"], len(jobs), len(found))
+        time.sleep(reed_client.SLEEP_SECONDS)
+
+    logger.info("Reed: %d calls, %d new rows (%d stale, %d filtered)",
+                calls, len(new_rows), stale, filtered)
+    return new_rows
 
 
 # --- Summary ----------------------------------------------------------------

@@ -123,7 +123,8 @@ def _get(params):
 
 
 def search_jobs(keywords, location="", distance=None, contract_type="permanent",
-                salary_min=None, max_pages=1, per_page=MAX_PER_PAGE):
+                salary_min=None, max_pages=1, per_page=MAX_PER_PAGE,
+                direct_employer_only=False):
     """Return a list of raw Reed postings.
 
     contract_type maps onto Reed's own boolean filters, which is the whole
@@ -146,6 +147,8 @@ def search_jobs(keywords, location="", distance=None, contract_type="permanent",
                 params["distanceFromLocation"] = distance
         if salary_min:
             params["minimumSalary"] = salary_min
+        if direct_employer_only:
+            params["postedByDirectEmployer"] = "true"
         params.update(flags)
 
         data = _get(params)

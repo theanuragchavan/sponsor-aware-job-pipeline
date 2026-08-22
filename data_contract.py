@@ -51,6 +51,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     # store + gates
     "tracker.py",
     "sponsor_check.py",
+    "ats_prober.py",
     "reconcile_audit.py",
     "config.py",
     "pipeline/shortlist.py",
@@ -123,6 +124,10 @@ USER_PATHS: tuple[str, ...] = (
     "data/sponsor_aliases.json",
     "data/decision_log.jsonl",
     "data/ats_boards.csv",
+    # Which employers were already probed. A cache, but a slow one to
+    # rebuild -- 150 companies is ~10 minutes of throttled requests against
+    # other people's servers, so it travels rather than being re-earned.
+    "data/ats_probe_cache.json",
     "data/contacts.json",
     # His answers to form questions. Personal by definition -- salary
     # floor, visa status, location -- so it lives with the rest of the

@@ -59,6 +59,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "pipeline/explain.py",
     "pipeline/ghost.py",
     "pipeline/connections.py",
+    "pipeline/log_manual.py",
     "pipeline/cv_gate.py",
     "pipeline/verify_claims.py",
     "pipeline/outcomes.py",
@@ -135,6 +136,9 @@ USER_PATHS: tuple[str, ...] = (
     "data/ats_probe_cache.json",
     "data/contacts.json",
     "data/connections.json",
+    # What he applied to outside the pipeline, before it was recorded.
+    # His own application history, and the input to a tracker write.
+    "data/manual_applications.json",
     # His answers to form questions. Personal by definition -- salary
     # floor, visa status, location -- so it lives with the rest of the
     # personal data and is gitignored. It travels in a full export
@@ -187,6 +191,7 @@ PERSONAL_PATHS: tuple[str, ...] = (
     # sense than the rest of this list: the people in it are not him, and none
     # of them agreed to be in a repo.
     "data/connections.json",
+    "data/manual_applications.json",
     "pipeline/decisions.json",
     "pipeline/profile.md",
     "pipeline/sponsor_review.md",

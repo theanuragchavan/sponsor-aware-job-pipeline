@@ -68,6 +68,8 @@ data/contacts.json
 # Real names, employers and email addresses of people who connected with him.
 # The most personal file in the repo and the one nobody in it consented to.
 data/connections.json
+# His own application history, including roles applied to outside the pipeline.
+data/manual_applications.json
 
 # Outreach drafts: real names, and messages that are his to send.
 drafts/

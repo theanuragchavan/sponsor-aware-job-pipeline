@@ -65,6 +65,9 @@ web/ui/node_modules/
 web/ui/dist/
 .vercel
 data/contacts.json
+# Real names, employers and email addresses of people who connected with him.
+# The most personal file in the repo and the one nobody in it consented to.
+data/connections.json
 
 # Outreach drafts: real names, and messages that are his to send.
 drafts/
@@ -79,3 +82,7 @@ data/screening.yml
 # Outputs, not source, and personal either way.
 packages/
 runs/
+data/indeed_raw.txt
+data/indeed_staging.csv
+data/indeed_raw_t*.txt
+run_indeed.bat

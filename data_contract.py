@@ -45,6 +45,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "adzuna_client.py",
     "reed_client.py",
     "hn_hiring.py",
+    "indeed_staging.py",
     "ats_main.py",
     "main.py",
     "ats/",
@@ -57,6 +58,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "pipeline/shortlist.py",
     "pipeline/explain.py",
     "pipeline/ghost.py",
+    "pipeline/connections.py",
     "pipeline/cv_gate.py",
     "pipeline/verify_claims.py",
     "pipeline/outcomes.py",
@@ -92,6 +94,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "render.yaml",
     "requirements-web.txt",
     "run_tracker.bat.example",
+    "run_indeed.bat.example",
     "README.md",
     # Research, not personal data: public API endpoints, measured status codes
     # and two verified false-positive traps. It sits in the system layer because
@@ -131,6 +134,7 @@ USER_PATHS: tuple[str, ...] = (
     # other people's servers, so it travels rather than being re-earned.
     "data/ats_probe_cache.json",
     "data/contacts.json",
+    "data/connections.json",
     # His answers to form questions. Personal by definition -- salary
     # floor, visa status, location -- so it lives with the rest of the
     # personal data and is gitignored. It travels in a full export
@@ -142,6 +146,12 @@ USER_PATHS: tuple[str, ...] = (
     "data/call_counter.json",
     "data/ats_call_counter.json",
     "data/reed_call_counter.json",
+    "data/indeed_staging.csv",
+    "data/indeed_raw.txt",
+    "data/indeed_raw_t1.txt",
+    "data/indeed_raw_t2.txt",
+    "data/indeed_raw_t3.txt",
+    "run_indeed.bat",
     "data/ats_closed.json",
     # output
     "drafts/",
@@ -173,6 +183,10 @@ PERSONAL_PATHS: tuple[str, ...] = (
     "data/decision_log.jsonl",
     "data/sponsor_aliases.json",
     "data/contacts.json",
+    # Third parties' names, employers and addresses. Personal in a stronger
+    # sense than the rest of this list: the people in it are not him, and none
+    # of them agreed to be in a repo.
+    "data/connections.json",
     "pipeline/decisions.json",
     "pipeline/profile.md",
     "pipeline/sponsor_review.md",

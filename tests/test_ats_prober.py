@@ -185,12 +185,143 @@ def test_targets_come_from_the_tracker_not_the_register():
 
     Asserted against the source rather than by running it, because the real
     tracker is not available to a test.
+
+    The first version banned the string "load_sponsor_lookup" from main(), as a
+    proxy for "targets do not come from the register". The proxy went wrong the
+    moment --apply needed the register for something else entirely -- resolving
+    a company to its exact Home Office name. Assert the invariant itself: the
+    target list comes from the tracker, and nothing walks the register in order
+    to build it.
     """
     import inspect
     src = inspect.getsource(ats_prober.main)
-    assert "targets_from_tracker" in src
-    assert "load_sponsor_lookup" not in src, \
-        "register-alphabetical selection was removed on evidence; see the docstring"
+    assert "targets = targets_from_tracker(" in src
+    assert "sorted(lookup.items())" not in src, \
+        "register-alphabetical selection was removed on evidence: it yields " \
+        "003, 007 TAXI, 0086. See targets_from_tracker's docstring."
+
+
+# --- resolving the load-bearing column ------------------------------------
+
+def test_an_exact_register_key_resolves():
+    assert ats_prober.resolve_register_name("Tracebit", {"TRACEBIT": "A"},
+                                            {}) == "TRACEBIT"
+
+
+def test_a_confirmed_alias_resolves_to_its_register_name():
+    """Five of the first sweep's boards resolved this way -- Axle -> AXLE
+    ENERGY, Quilter -> QUILTER BUSINESS SERVICES -- all ticked on 2026-08-15.
+    """
+    # Alias keys are normalise_name() output, which uppercases.
+    aliases = {"AXLE": {"register_name": "AXLE ENERGY", "rating": "A"}}
+    assert ats_prober.resolve_register_name(
+        "Axle", {"AXLE ENERGY": "A"}, aliases) == "AXLE ENERGY"
+
+
+def test_an_alias_pointing_off_the_skilled_worker_register_is_refused():
+    """The register carries one row per route, so an organisation can be on it
+    while holding nothing he can use -- Salesforce's first row is a Global
+    Business Mobility graduate-trainee licence. `load_sponsor_lookup` already
+    filters on Route, so absence from it means the alias is stale, and stale is
+    not decided.
+    """
+    aliases = {"GHOST": {"register_name": "SOME TEMPORARY WORKER LTD"}}
+    assert ats_prober.resolve_register_name("Ghost", {"REAL CO": "A"},
+                                            aliases) == ""
+
+
+def test_a_prefix_match_is_not_a_decision():
+    """"AXLE" starting "AXLE ENERGY" is the same reasoning that mapped
+    Universal Music onto a design agency. sponsor_aliases.json is documented as
+    never written by a matcher, only by a decision.
+    """
+    assert ats_prober.resolve_register_name("Axle", {"AXLE ENERGY": "A"},
+                                            {}) == ""
+
+
+def test_an_unknown_company_resolves_to_nothing():
+    assert ats_prober.resolve_register_name("Nobody", {}, {}) == ""
+    assert ats_prober.resolve_register_name("", {"": "A"}, {}) == ""
+
+
+def test_appending_preserves_what_is_already_there(tmp=None):
+    """ats_boards.csv is hand-curated; an append that rewrites it can lose
+    someone's notes."""
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "ats_boards.csv"
+        p.write_text("company,ats,slug,register_name,status,last_ok,notes\n"
+                     "Accurx,ashby,accurx,ACCURX,active,2026-08-14,17 jobs\n",
+                     encoding="utf-8")
+        ats_prober.append_boards(
+            [{"company": "Tes", "ats": "greenhouse", "slug": "tes",
+              "register_name": "TES", "jobs": 1}], p)
+        lines = p.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 3, lines
+    assert "Accurx" in lines[1], "the existing row must survive"
+    assert lines[2].startswith("Tes,greenhouse,tes,TES,active,,")
+
+
+def test_appending_to_a_file_with_no_trailing_newline_does_not_join_rows():
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as d:
+        p = Path(d) / "b.csv"
+        p.write_text("company,ats,slug,register_name,status,last_ok,notes\n"
+                     "Accurx,ashby,accurx,ACCURX,active,,17 jobs",
+                     encoding="utf-8")
+        ats_prober.append_boards(
+            [{"company": "Tes", "ats": "greenhouse", "slug": "tes",
+              "register_name": "TES", "jobs": 1}], p)
+        lines = p.read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 3, lines
+    assert lines[1] == "Accurx,ashby,accurx,ACCURX,active,,17 jobs"
+
+
+# --- the cache -------------------------------------------------------------
+
+def test_a_cached_hit_is_reported_not_skipped():
+    """A second run of a successful sweep found nothing, because anything in
+    the cache was skipped rather than reused -- so --apply had no rows."""
+    cache = {"zilch": {"at": "2026-08-22",
+                       "hit": {"company": "Zilch", "board_name": "",
+                               "slug": "zilch", "ats": "ashby", "jobs": 12}}}
+    assert ats_prober.cached_hit(cache, "zilch")["jobs"] == 12
+
+
+def test_a_cached_hit_is_regraded_against_the_current_rule():
+    """`match` is a judgement, and the rule has already changed once. A cache
+    that freezes an old verdict quietly un-improves the tool."""
+    cache = {"zilch": {"at": "2026-08-22",
+                       "hit": {"company": "Zilch", "board_name": "",
+                               "slug": "zilch", "ats": "ashby", "jobs": 12,
+                               "match": "loose"}}}
+    assert ats_prober.cached_hit(cache, "zilch")["match"] == "exact"
+
+
+def test_a_legacy_cache_entry_is_regraded_too():
+    """Entries written before the timestamped format are bare hit dicts. The
+    first fix returned them early and five Ashby boards kept a stale verdict.
+    """
+    cache = {"olix": {"company": "OLIX", "board_name": "", "slug": "olix",
+                      "ats": "ashby", "jobs": 22, "match": "loose"}}
+    assert ats_prober.cached_hit(cache, "olix")["match"] == "exact"
+
+
+def test_a_recent_miss_is_believed_and_an_old_one_is_reprobed():
+    """Re-probing unresolved companies monthly is this module's stated policy;
+    the first version cached misses forever and contradicted it."""
+    import datetime as dt
+    today = dt.date.today()
+    fresh = (today - dt.timedelta(days=1)).isoformat()
+    stale = (today - dt.timedelta(days=ats_prober.MISS_TTL_DAYS + 1)).isoformat()
+    assert ats_prober.cached_hit({"x": {"at": fresh, "hit": None}}, "x") == {}
+    assert ats_prober.cached_hit({"x": {"at": stale, "hit": None}}, "x") is None
+
+
+def test_an_unseen_company_is_probed():
+    assert ats_prober.cached_hit({}, "brand-new") is None
 
 
 if __name__ == "__main__":

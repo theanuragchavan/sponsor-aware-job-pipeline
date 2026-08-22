@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import datetime as dt
 import json
 import re
 import sys
@@ -252,6 +253,112 @@ def targets_from_tracker(limit: int) -> list[str]:
     return [name for name, _n in counts.most_common(limit)]
 
 
+def resolve_register_name(company: str, lookup: dict, aliases: dict) -> str:
+    """The exact Home Office string for this company, or "" if nobody decided.
+
+    `register_name` is the load-bearing column in `ats_boards.csv`: Greenhouse
+    reports Monzo as "Monzo" while the register says "MONZO BANK", and without
+    the mapping every job ingested from that board fails the sponsorship gate
+    it was collected to pass.
+
+    Two sources count, and neither of them is this function guessing. An exact
+    register key is a fact. A `sponsor_aliases.json` entry is a decision he
+    already made and dated -- five of the boards found in the first sweep
+    resolved this way (Axle -> AXLE ENERGY, Quilter -> QUILTER BUSINESS
+    SERVICES), all confirmed on 2026-08-15.
+
+    A prefix or fuzzy match returns "" instead. "AXLE" starting "AXLE ENERGY"
+    is exactly the reasoning that would also map "Universal Music" onto a
+    design agency, and `data/sponsor_aliases.json` is documented as never
+    written by a matcher, only by a decision.
+    """
+    key = sponsor_check.normalize_name(company)
+    if not key:
+        return ""
+
+    entry = (aliases or {}).get(key)
+    if entry and entry.get("register_name"):
+        name = entry["register_name"]
+        # Confirm the alias still points at a Skilled Worker licence rather
+        # than trusting it outright. The register carries **one row per route**,
+        # so an organisation can appear on it while holding nothing Anurag can
+        # use -- Salesforce's first row is "Temporary Worker (A rating) | Global
+        # Business Mobility: Graduate Trainee". `load_sponsor_lookup` already
+        # filters on Route, so presence in it is the check; an alias that no
+        # longer resolves there is stale, and stale is not decided.
+        if sponsor_check.normalize_name(name) in (lookup or {}):
+            return name
+        return ""
+
+    if key in (lookup or {}):
+        return key
+    return ""
+
+
+def append_boards(rows: list[dict], path: Path) -> int:
+    """Append accepted boards to ats_boards.csv, preserving what is there."""
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    nl = "\n"
+    lines = [] if not existing or existing.endswith(nl) else [nl]
+    for r in rows:
+        lines.append(",".join([
+            r["company"], r["ats"], r["slug"], r["register_name"], "active",
+            "", f"{r['jobs']} jobs on first probe"]) + nl)
+    with open(path, "a", encoding="utf-8", newline="") as fh:
+        fh.write("".join(lines))
+    return len(rows)
+
+
+#: How long a "no board found" answer stays believed. A company that had no
+#: public board in June may have one now, and re-probing 150 of them costs a
+#: few minutes once a month.
+MISS_TTL_DAYS = 30
+
+
+def cached_hit(cache: dict, key: str):
+    """The cached result for this company: a hit dict, {} for a known miss, or
+    None meaning "probe it".
+
+    The first version stored `hit or {}` and skipped anything already in the
+    cache. That did two wrong things at once. A cached *miss* was believed
+    forever, contradicting this module's own stated policy of re-probing
+    unresolved companies monthly. And a cached *hit* was skipped entirely
+    rather than reported, so a second run of a successful sweep found nothing
+    and `--apply` had no rows to write.
+
+    A hit is a durable fact about a company and is reused without re-probing.
+    A miss is only an observation about one day, and expires.
+    """
+    entry = cache.get(key)
+    if entry is None:
+        return None
+
+    # Entries written before this format had no timestamp: a bare hit dict, or
+    # {} for a miss. Honour the hits; re-probe the undated misses.
+    if "hit" not in entry:
+        hit = entry if entry.get("company") else None
+        if hit is None:
+            return None
+    else:
+        hit = entry.get("hit")
+        if not hit:
+            try:
+                seen = dt.date.fromisoformat(entry.get("at", ""))
+            except ValueError:
+                return None
+            return {} if (dt.date.today() - seen).days < MISS_TTL_DAYS else None
+
+    # Re-grade rather than trusting the stored verdict, and do it on the way
+    # out so the legacy path cannot skip it -- the first attempt returned
+    # old-format entries early and five Ashby boards kept a verdict from a rule
+    # that had since been fixed. `match` is a judgement; the postings are the
+    # expensive part, and those are what is really being cached.
+    hit["match"] = match_strength(hit.get("company", ""),
+                                  hit.get("board_name", ""),
+                                  hit.get("slug", ""))
+    return hit
+
+
 def load_cache() -> dict:
     try:
         return json.loads(CACHE.read_text(encoding="utf-8"))
@@ -285,12 +392,13 @@ def main(argv=None) -> int:
     ap.add_argument("companies", nargs="*",
                     help="company names; omit to read from the register")
     ap.add_argument("--limit", type=int, default=25,
-                    help="how many register companies to probe (default 25)")
-    ap.add_argument("--rating", default="A",
-                    help="only probe sponsors with this rating (default A)")
+                    help="how many tracker companies to probe (default 25)")
     ap.add_argument("--throttle", type=float, default=THROTTLE)
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--apply", action="store_true",
+                    help="append confirmed boards to data/ats_boards.csv "
+                         "(only those whose register_name is already decided)")
     args = ap.parse_args(argv)
 
     if args.companies:
@@ -310,16 +418,17 @@ def main(argv=None) -> int:
 
     for company in targets:
         key = company.strip().lower()
-        if key in cache:
-            if args.verbose:
-                print(f"{company}: cached ({cache[key] or 'no board'})")
-            continue
+        hit = cached_hit(cache, key)
 
-        if args.verbose:
-            print(f"{company}")
-        hit = probe_company(company, throttle=args.throttle,
-                            verbose=args.verbose)
-        cache[key] = hit or {}
+        if hit is None:
+            if args.verbose:
+                print(f"{company}")
+            hit = probe_company(company, throttle=args.throttle,
+                                verbose=args.verbose)
+            cache[key] = {"at": dt.date.today().isoformat(), "hit": hit}
+        elif args.verbose:
+            print(f"{company}: cached ({hit or 'no board'})")
+
         if not hit:
             continue
         # "Already tracked" and "no board exists" are different findings and
@@ -361,13 +470,41 @@ def main(argv=None) -> int:
             for t in h["sample"]:
                 print(f"      - {t}")
     if hits:
-        print("\nAdd to data/ats_boards.csv (company,ats,slug,register_name,"
-              "status,last_ok,notes):")
+        lookup = sponsor_check.load_sponsor_lookup()
+        aliases = sponsor_check.load_aliases()
         for h in hits:
-            print(f"  {h['company']},{h['ats']},{h['slug']},{h['company']},"
-                  f"active,,{h['jobs']} jobs on first probe")
-        print("\nProposed, not written. register_name is the load-bearing "
-              "column and it is a decision.")
+            h["register_name"] = resolve_register_name(h["company"], lookup,
+                                                       aliases)
+        ready = [h for h in hits if h["register_name"]]
+        undecided = [h for h in hits if not h["register_name"]]
+
+        if ready:
+            print()
+            print("company,ats,slug,register_name,status,last_ok,notes")
+            for h in ready:
+                print(f"  {h['company']},{h['ats']},{h['slug']},"
+                      f"{h['register_name']},active,,{h['jobs']} jobs on "
+                      f"first probe")
+
+        if undecided:
+            print()
+            print(f"{len(undecided)} board(s) have no decided register_name "
+                  f"and are left out even with --apply:")
+            for h in undecided:
+                print(f"  {h['company']} ({h['ats']}/{h['slug']}, "
+                      f"{h['jobs']} jobs)")
+            print("Resolve them with pipeline/sponsor_review.py, which "
+                  "proposes a register name and waits for you to tick it. A "
+                  "prefix match is not a decision.")
+
+        if args.apply and ready:
+            n = append_boards(ready, ROOT / "data" / "ats_boards.csv")
+            print()
+            print(f"Appended {n} board(s) to data/ats_boards.csv. "
+                  f"`python ats_main.py --dry-run` polls them.")
+        elif ready:
+            print()
+            print("Proposed, not written. Re-run with --apply to append.")
     return EXIT_OK if hits else EXIT_NOTHING
 
 

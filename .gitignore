@@ -42,6 +42,7 @@ data/sponsors_register.csv
 data/sponsors_register_meta.json
 data/call_counter.json
 data/ats_call_counter.json
+data/reed_call_counter.json
 data/ats_closed.json
 pipeline/liveness_cache.json
 logs/

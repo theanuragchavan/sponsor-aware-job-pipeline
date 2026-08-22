@@ -9,6 +9,7 @@ Run:  uvicorn web.api.app:app --reload
 from __future__ import annotations
 
 import datetime as dt
+import json
 import time
 from collections import defaultdict, deque
 from pathlib import Path
@@ -663,6 +664,114 @@ def resolve(body: ResolveCompanyRequest,
     result = actions.resolve_company(**body.model_dump(), preview=False,
                                      actor_id=who[0], actor_name=who[1])
     return ActionResponse(**result.as_dict())
+
+@app.get("/api/queue")
+def queue() -> list[dict]:
+    """Applications prepared for Cowork, with the gate verdict for each.
+
+    Read from the packages on disk rather than recomputed. The verdict a person
+    is looking at has to be the verdict the agent will act on, and re-running
+    the gate here would let the screen disagree with `gate.json` whenever the
+    tracker moved underneath it -- which it does every morning at nine.
+
+    Demo mode returns nothing rather than fixtures: there is no plausible
+    synthetic package, since the whole artifact is a real CV and a real letter.
+    """
+    if settings.is_demo:
+        return []
+
+    out: list[dict] = []
+    root = Path(settings.packages_dir)
+    if not root.is_dir():
+        return out
+
+    for pkg in sorted(root.iterdir()):
+        gate_file = pkg / "gate.json"
+        job_file = pkg / "job.json"
+        if not gate_file.exists() or not job_file.exists():
+            continue
+        try:
+            verdict = json.loads(gate_file.read_text(encoding="utf-8"))
+            job = json.loads(job_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+
+        # A package with a result is history, not a queue item.
+        done = (Path(settings.runs_dir) / pkg.name / "result.json").exists()
+        out.append({
+            "job_id": verdict.get("job_id", ""),
+            "company": job.get("company", ""),
+            "title": job.get("title", ""),
+            "url": job.get("url", ""),
+            "ats": job.get("ats", ""),
+            "sponsor_rating": job.get("sponsor_rating", ""),
+            "autosubmit": bool(verdict.get("autosubmit")),
+            "blocked_by": verdict.get("blocked_by", []),
+            "conditions": verdict.get("conditions", []),
+            "has_cv": (pkg / "cv.pdf").exists(),
+            "has_letter": (pkg / "letter.md").exists(),
+            "done": done,
+        })
+    out.sort(key=lambda r: (r["done"], not r["autosubmit"], r["company"]))
+    return out
+
+
+@app.get("/api/runs")
+def runs() -> list[dict]:
+    """What Cowork actually did, newest first.
+
+    `submitted` is reported alongside whether a confirmation was captured. An
+    agent's own report that it succeeded is a claim; the confirmation text is
+    the evidence, and the two are shown separately so a submission nobody can
+    corroborate is visible as exactly that.
+    """
+    if settings.is_demo:
+        return []
+
+    out: list[dict] = []
+    root = Path(settings.runs_dir)
+    if not root.is_dir():
+        return out
+
+    rows = store.rows()
+    for d in sorted(root.iterdir()):
+        f = d / "result.json"
+        if not f.exists():
+            continue
+        try:
+            r = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        row = rows.get(r.get("job_id", ""), {})
+        out.append({
+            "job_id": r.get("job_id", ""),
+            "company": row.get("company", ""),
+            "title": row.get("title", ""),
+            "outcome": r.get("outcome", ""),
+            "at": r.get("at", ""),
+            "blocked_by": r.get("blocked_by", []),
+            "confirmation": (r.get("confirmation") or "")[:300],
+            "confirmed": bool((r.get("confirmation") or "").strip()),
+            "error": (r.get("error") or "")[:300],
+            "screenshot": r.get("screenshot", ""),
+        })
+    out.sort(key=lambda r: r["at"], reverse=True)
+    return out
+
+
+@app.get("/api/outcomes")
+def outcomes_report() -> dict:
+    """The funnel, the channel table, and the measured silence threshold.
+
+    Thin wrapper over `pipeline/outcomes.py` so the screen and the CLI cannot
+    drift into two different answers about what happened.
+    """
+    from pipeline import outcomes as _outcomes
+
+    return _outcomes.report(
+        log_path=Path(settings.decision_log_path),
+        store_path=Path(settings.tracker_path))
+
 
 # Registered last, deliberately: a catch-all mount at "/" shadows anything
 # declared after it, so every /api route above must already exist.

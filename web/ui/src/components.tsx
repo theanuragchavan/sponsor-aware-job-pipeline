@@ -151,21 +151,29 @@ export function ValidationList({ validations }: { validations: Validation[] }) {
   );
 }
 
-export function Panel({ title, right, children }: {
-  title?: React.ReactNode; right?: React.ReactNode; children: React.ReactNode;
+export function Panel({ title, note, right, children }: {
+  title?: React.ReactNode; note?: React.ReactNode;
+  right?: React.ReactNode; children: React.ReactNode;
 }) {
+  /* Uses .panel / .panel-hd from index.css rather than re-declaring the same
+   * background and border inline. The design system defined ~30 primitives and
+   * every component reached past them for style={{}}, which meant a token
+   * change had to be made in one place and applied in seven.
+   *
+   * `note` is new: a header that can carry a count ("3 of 7 clear all ten
+   * conditions") without each caller inventing its own subtitle markup. */
   return (
-    <section className="rounded-xl overflow-hidden"
-             style={{ background: "var(--bg-raised)",
-                      border: "1px solid var(--border)" }}>
+    <section className="panel">
       {title && (
-        <header className="flex items-center justify-between px-4 py-2.5"
-                style={{ borderBottom: "1px solid var(--border)" }}>
-          <h2 className="text-[13px] font-semibold">{title}</h2>
+        <header className="panel-hd">
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h2 className="text-[13px] font-semibold truncate">{title}</h2>
+            {note && <span className="eyebrow truncate">{note}</span>}
+          </div>
           {right}
         </header>
       )}
-      {children}
+      <div className="panel-body">{children}</div>
     </section>
   );
 }

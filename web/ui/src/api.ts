@@ -240,8 +240,38 @@ export type LogApplicationInput = {
   action_id?: string;
 };
 
+export type GateCondition = { rule: string; result: "pass" | "fail"; detail: string };
+
+export type QueueItem = {
+  job_id: string; company: string; title: string; url: string; ats: string;
+  sponsor_rating: string; autosubmit: boolean; blocked_by: string[];
+  conditions: GateCondition[]; has_cv: boolean; has_letter: boolean;
+  done: boolean;
+};
+
+export type Run = {
+  job_id: string; company: string; title: string; outcome: string; at: string;
+  blocked_by: string[]; confirmation: string; confirmed: boolean;
+  error: string; screenshot: string;
+};
+
+export type Outcomes = {
+  applications: number;
+  excluded_no_application: number;
+  funnel: { total: number; reached: Record<string, number> };
+  by_channel: { applied_via: string; source: string; sent: number;
+                replied: number; rate: string }[];
+  silence_threshold_days: number;
+  threshold_basis: string;
+  gone_quiet: { job_id: string; company: string; title: string;
+                days: number; furthest: string }[];
+};
+
 export const api = {
   meta: () => call<Meta>("/meta"),
+  queue: () => call<QueueItem[]>("/queue"),
+  runs: () => call<Run[]>("/runs"),
+  outcomes: () => call<Outcomes>("/outcomes"),
   summary: () => call<Summary>("/summary"),
   jobs: (q: string) => call<JobPage>(`/jobs?${q}`),
   job: (id: string) => call<JobDetail>(`/jobs/${encodeURIComponent(id)}`),

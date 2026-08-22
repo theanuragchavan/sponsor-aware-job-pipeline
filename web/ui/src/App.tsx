@@ -12,6 +12,8 @@ import type { LogEntry, ReviewItem } from "./api";
 import { DecisionPanel } from "./DecisionPanel";
 import { Jobs } from "./Jobs";
 import { Overview } from "./Overview";
+import { Queue } from "./Queue";
+import { Runs } from "./Runs";
 import Landing from "./landing";
 import { Empty, Panel, Pill, ServerDown, Stat, ThemeToggle, useTheme } from "./components";
 
@@ -48,7 +50,11 @@ function Shell() {
   // the wrong one: it answers "how is my search going" when the question every
   // morning is "what should I apply to". Numbers belong beside the work, not
   // in front of it.
-  const [tab, setTab] = useState<"overview" | "jobs" | "queue">("jobs");
+  // "queue" is the company-name review screen and predates the Cowork work;
+  // "cowork" is the prepared-application queue. Renaming the older one would
+  // touch five call sites for no gain.
+  const [tab, setTab] =
+    useState<"overview" | "jobs" | "queue" | "cowork" | "runs">("jobs");
   const [jobFilter, setJobFilter] = useState<{ status?: string; eligible?: string }>({});
 
   const meta = useQuery({ queryKey: ["meta"], queryFn: api.meta });
@@ -97,7 +103,8 @@ function Shell() {
           <div className="flex rounded-lg p-0.5 gap-0.5"
                style={{ background: "var(--bg-sunken)",
                         border: "1px solid var(--border)" }}>
-            {([["jobs", "Find a job"], ["overview", "My applications"],
+            {([["jobs", "Find a job"], ["cowork", "Queue"],
+               ["runs", "Runs"], ["overview", "My applications"],
                ["queue", "Fix company names"]] as const)
               .map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)}
@@ -116,7 +123,11 @@ function Shell() {
           three-column layout up means two panels cheerfully invite you to
           "pick a company on the left" while the left is an error — which reads
           as three unrelated problems instead of one. */}
-      {tab === "overview" ? (
+      {tab === "cowork" ? (
+        <main className="flex-1 overflow-y-auto"><Queue /></main>
+      ) : tab === "runs" ? (
+        <main className="flex-1 overflow-y-auto"><Runs /></main>
+      ) : tab === "overview" ? (
         <main className="flex-1"><Overview
           onOpenQueue={() => setTab("queue")}
           onOpenJobs={(f) => { setJobFilter(f); setTab("jobs"); }} /></main>

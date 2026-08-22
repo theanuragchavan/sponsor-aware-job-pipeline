@@ -36,6 +36,19 @@ class Settings:
     rate_limit_per_min: int
     max_log_entries: int
 
+    #: Per-job handoff bundles and what came back from them. In demo
+    #: mode these point at paths that do not exist, so the queue and
+    #: runs screens render empty rather than fabricating a synthetic
+    #: application -- the artifacts are a real CV and a real letter,
+    #: and there is no plausible fake version of either.
+    #: Defaulted, unlike every field above, because tests construct Settings
+    #: directly and a new REQUIRED field breaks all thirty-six of them at once
+    #: -- which is a signal about the change to this file, not about the code
+    #: under test. A path that has a sensible fallback should not be able to
+    #: do that.
+    packages_dir: Path = ADZUNA_HOME / "packages"
+    runs_dir: Path = ADZUNA_HOME / "runs"
+
     @property
     def is_demo(self) -> bool:
         return self.mode == "demo"
@@ -61,6 +74,8 @@ def load_settings() -> Settings:
             decision_log_path=base / "demo_decision_log.jsonl",
             contacts_path=base / "demo_contacts.json",
             drafts_dir=base / "demo_drafts",
+            packages_dir=base / "demo_packages",
+            runs_dir=base / "demo_runs",
             # The demo has no resume repo. Both paths point inside the demo
             # data dir and simply will not exist, which the CV check reports as
             # "skipped" rather than inventing a pass.
@@ -84,6 +99,8 @@ def load_settings() -> Settings:
         decision_log_path=data / "decision_log.jsonl",
         contacts_path=data / "contacts.json",
         drafts_dir=ADZUNA_HOME / "drafts",
+        packages_dir=ADZUNA_HOME / "packages",
+        runs_dir=ADZUNA_HOME / "runs",
         resume_dir=Path(os.getenv("RESUME_HOME", ADZUNA_HOME.parent / "Resume")),
         attestations_path=Path(
             os.getenv("CV_ATTESTATIONS",

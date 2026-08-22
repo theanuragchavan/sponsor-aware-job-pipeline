@@ -104,6 +104,9 @@ SYSTEM_PATHS: tuple[str, ...] = (
     # is whether it would embarrass in a screenshot, and a list of job-board
     # endpoints would not.
     "JOB_SOURCES.md",
+    # Public form markup, same reasoning as JOB_SOURCES.md: it describes the
+    # world rather than him.
+    "ATS_FORMS.md",
     "data_contract.py",
     "export.py",
     ".gitignore",

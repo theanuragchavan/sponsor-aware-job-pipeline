@@ -96,6 +96,29 @@ def find_existing(entry: dict, rows: dict) -> dict | None:
     return None
 
 
+def differs(entry: dict, row: dict) -> bool:
+    """Whether the tracker row disagrees with what the entry records.
+
+    Status is the obvious one -- new -> applied, applied -> rejected. The less
+    obvious one is a row that already says `applied` but with `applied_via`
+    blank, which is how both Snowflake rows sat: the application happened, the
+    channel was never written down. That blank is not cosmetic. `applied_via`
+    is the axis the whole channel funnel divides by, so a row missing it is a
+    row that silently drops out of the only analysis it was applied for.
+
+    Only fields the entry actually states are compared, so an entry that omits
+    a field never blanks one that is already filled.
+    """
+    if (row.get("status") or "new").strip().lower() != (
+            entry.get("status") or "applied"):
+        return True
+    for field in ("applied_via", "date_applied"):
+        stated = (entry.get(field) or "").strip()
+        if stated and (row.get(field) or "").strip() != stated:
+            return True
+    return False
+
+
 def build_row(entry: dict, lookup, aliases) -> dict:
     match, rating, route = sponsor_check.match_company(
         entry["company"], lookup, aliases)
@@ -134,12 +157,11 @@ def plan(entries: list[dict], rows: dict, lookup, aliases) -> list[dict]:
 
         existing = find_existing(entry, rows)
         if existing:
-            status = (existing.get("status") or "new").strip().lower()
-            if status == (entry.get("status") or "applied"):
+            if differs(entry, existing):
+                out.append({"action": "mark", "entry": entry, "row": existing})
+            else:
                 out.append({"action": "already", "entry": entry,
                             "row": existing})
-            else:
-                out.append({"action": "mark", "entry": entry, "row": existing})
         else:
             out.append({"action": "add", "entry": entry,
                         "row": build_row(entry, lookup, aliases)})

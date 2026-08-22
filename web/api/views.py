@@ -13,6 +13,7 @@ import shortlist  # noqa: E402
 import sponsor_check  # noqa: E402
 import sponsor_review  # noqa: E402
 import tracker  # noqa: E402
+from pipeline import ghost  # noqa: E402
 
 
 def resolution_for(company: str, registry) -> Resolution:
@@ -75,7 +76,7 @@ def job_summary(row: dict) -> JobSummary:
         disqualified_reason=reason)
 
 
-def job_detail(row: dict, registry, log) -> JobDetail:
+def job_detail(row: dict, registry, log, ghost_index=None) -> JobDetail:
     points, why = shortlist.score(row)
     base = job_summary(row).model_dump()
     desc = row.get("description", "") or ""
@@ -88,6 +89,10 @@ def job_detail(row: dict, registry, log) -> JobDetail:
         date_applied=row.get("date_applied", ""),
         applied_via=row.get("applied_via", ""),
         score_reasons=why,
+        # include_age=False: the panel already shows "posted 835d ago",
+        # so an "open 835 days" note underneath would restate it.
+        signals=(ghost.signals(row, ghost_index, include_age=False)
+                 if ghost_index is not None else []),
         clearance_hint=hint.group(0) if hint else "",
         resolution=resolution_for(row.get("company", ""), registry),
         decision_trail=log.read(entity=f"job:{row.get('id')}", limit=20))

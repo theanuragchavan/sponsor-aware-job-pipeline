@@ -4,12 +4,13 @@ The one that matters separates two things a duplicate count conflates, and both
 examples are real rows from the store:
 
 - Graphcore's "AI Research Engineer" -- three Greenhouse ids, one posted date,
-  three cities. One role listed per location.
+  three cities. The same role open in three places, which for someone who will
+  take any of them is three chances rather than a duplicate.
 - Faculty's "Machine Learning Engineer" -- six Ashby ids, six posted dates,
   seven months apart. The same role advertised over and over.
 
-Both count as "copies". They call for opposite responses, and only the posted
-date tells them apart.
+Both count as "copies". They mean opposite things -- more ways in, versus a
+reason to look twice -- and only the posted date tells them apart.
 
 A third case was found by running it: Archangel Lightworks, three ids over
 three days. That is one hiring push churning aggregator ids, and flagging it as
@@ -51,18 +52,23 @@ def test_a_different_title_is_a_different_role():
         _row(title="Infrastructure Engineer"))
 
 
-# --- one role, many locations ---------------------------------------------
+# --- one role, many cities -------------------------------------------------
 
-def test_the_same_role_in_three_cities_is_reported_as_one_role():
+def test_the_same_role_in_three_cities_reads_as_three_chances():
     """Graphcore: ids 8632581002/2002/3002, one posted date, three cities.
 
-    Applying three times would be embarrassing.
+    The first version said "one role, not 3" and advised against applying to
+    all three. Wrong twice: you cannot tell a split requisition from three real
+    openings from outside, and he will take any of the three cities — so this
+    is more ways in, not a duplicate to tidy away. Phrased as an opportunity.
     """
     rows = [_row(id="gh:8632581002", location="London, UK"),
             _row(id="gh:8632582002", location="Bristol, UK"),
             _row(id="gh:8632583002", location="Cambridge, UK")]
     sig = " ".join(_sigs(rows))
-    assert "3 locations" in sig and "one role, not 3" in sig, sig
+    assert "Bristol, UK" in sig and "Cambridge, UK" in sig, sig
+    assert "you can each apply to" in sig, sig
+    assert "one role, not" not in sig, "must not discourage applying"
     assert "advertised" not in sig, "a location split is not a repost"
 
 
@@ -145,7 +151,7 @@ def test_suppressing_age_keeps_the_signals_the_caller_cannot_get_elsewhere():
             _row(id="2", location="Bristol, UK"),
             _row(id="3", location="Cambridge, UK")]
     sigs = ghost.signals(rows[0], ghost.index(rows), include_age=False)
-    assert any("3 locations" in s for s in sigs), sigs
+    assert any("also open in" in s for s in sigs), sigs
 
 
 def test_the_shortlist_asks_for_signals_without_age():

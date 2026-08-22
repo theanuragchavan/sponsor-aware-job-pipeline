@@ -27,6 +27,7 @@ from .referrals import (github as gh_referrals, linkedin as li_referrals,
                         xray as xray_referrals)
 from .demo_reset import DemoReset
 from . import outreach
+from pipeline import ghost
 from .models import (ActionResponse, CompanyDetail, CompanySummary, JobDetail,
                      JobPage, LogApplicationRequest, Meta,
                      ResolveCompanyRequest, ReviewItem,
@@ -320,7 +321,10 @@ def job(job_id: str) -> JobDetail:
     row = store.row(job_id)
     if row is None:
         raise ActionError("not_found", f"No job {job_id!r}.")
-    return views.job_detail(row, registry, log)
+    # The index is over every row, because what ghost counts is how often a
+    # posting appears across the whole store -- one row cannot know that.
+    return views.job_detail(row, registry, log,
+                            ghost_index=ghost.index(list(store.rows().values())))
 
 
 @app.get("/api/companies", response_model=list[CompanySummary])

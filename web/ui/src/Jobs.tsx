@@ -208,6 +208,20 @@ function JobDetail({ id }: { id: string | null }) {
           </Field>
         )}
 
+        {/* Notes from pipeline/ghost.py. Deliberately below the score and
+            visually quieter than it: none of this changed the ranking, and
+            styling it like a verdict would imply it had. Two kinds arrive
+            here — the same role open in other cities, which is more ways in,
+            and a requisition that keeps being re-advertised, which is a
+            reason to read it twice. */}
+        {j.signals?.length > 0 && (
+          <Field label="Worth knowing">
+            <ul className="prov">
+              {j.signals.map((s) => <li key={s}>{s}</li>)}
+            </ul>
+          </Field>
+        )}
+
         <Field label="Status">
           {/* Two groups, because they are two different things and having them
               in one undifferentiated row is how "ignored" gets clicked when

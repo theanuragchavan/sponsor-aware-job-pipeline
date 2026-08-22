@@ -71,6 +71,10 @@ class JobDetail(JobSummary):
     date_applied: str = ""
     applied_via: str = ""
     score_reasons: list[str] = Field(default_factory=list)
+    #: Display-only notes from pipeline/ghost.py -- extra cities the same
+    #: role is open in, and requisitions that keep being re-advertised.
+    #: Never part of the score.
+    signals: list[str] = Field(default_factory=list)
     clearance_hint: str = ""
     resolution: Resolution | None = None
     decision_trail: list[dict[str, Any]] = Field(default_factory=list)

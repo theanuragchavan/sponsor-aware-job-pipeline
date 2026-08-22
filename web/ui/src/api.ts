@@ -99,6 +99,7 @@ export type JobDetail = Job & {
   date_applied: string;
   applied_via: string;
   score_reasons: string[];
+  signals: string[];
   clearance_hint: string;
   resolution: {
     method: "exact" | "alias" | "none";

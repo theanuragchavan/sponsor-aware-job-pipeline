@@ -1,11 +1,11 @@
-"""Signals that a posting may not be a real, fillable vacancy.
+"""Things worth knowing about a posting before you spend an evening on it.
 
 Display only. Nothing here changes a score, and that is deliberate rather than
 cautious: `shortlist.score()`'s weights are frozen because there is no outcome
 data to tune them against, and a signal computed from the same data the ranker
 already sees would be tuning by the back door.
 
-These are also **signals, not accusations**. A long-open requisition is
+The cautions here are **signals, not accusations**. A long-open requisition is
 sometimes a real role with a slow panel, and a company that reposts monthly is
 sometimes a company that genuinely hires monthly. The output says what was
 observed and leaves the inference to him.
@@ -17,16 +17,18 @@ a clean example of each:
 
 - **Graphcore, "AI Research Engineer"** -- three Greenhouse ids, consecutive
   (8632581002/2002/3002), *the same posted date*, and locations London, Bristol
-  and Cambridge. That is one job advertised three times, which is a listing
-  artifact. Applying to all three would be embarrassing.
+  and Cambridge. The same role open in three cities. Whether that is one
+  requisition split by location or three real openings is not knowable from
+  outside, and for someone who will take any of the three it does not matter:
+  it is three chances at the same team. Reported as an opportunity.
 - **Faculty, "Machine Learning Engineer"** -- six Ashby ids with six *different*
   posted dates spread from 2025-12 to 2026-07. That is the same role advertised
   again and again over seven months, which is the evergreen/hard-to-fill/ghost
   pattern.
 
 Both show up as "6 copies" to anything counting rows. The posted date separates
-them, and they call for opposite responses: collapse the first, be wary of the
-second.
+them, and they mean opposite things: the first is more ways in, the second is a
+reason to look twice.
 
 The 632 reposted title groups in the store are dominated by agencies -- Noir
 posting the same ".NET Developer" ad 90 times, ITOL Recruit 89 -- but those are
@@ -96,13 +98,28 @@ def signals(row: dict, idx: dict, *, include_age: bool = True) -> list[str]:
                      for r in copies if (r.get("location") or "").strip()}
 
         if len(dates) <= 1 and len(locations) > 1:
-            # One role, listed per location. Graphcore's London/Bristol/
-            # Cambridge trio. Not a ghost signal -- a reason not to apply three
-            # times.
-            out.append(
-                f"listed in {len(locations)} locations under {len(copies)} ids "
-                f"({', '.join(sorted(locations)[:3])}) — one role, not "
-                f"{len(copies)}")
+            # The same role open in several cities. Graphcore's London /
+            # Bristol / Cambridge trio.
+            #
+            # The first version called this "one role, not 3" and told him not
+            # to apply three times. That was wrong twice over. From outside you
+            # cannot tell a single requisition split by city from three real
+            # openings -- Greenhouse mints one id per location either way -- so
+            # asserting "one role" states a guess as a fact. And he is
+            # location-flexible: whichever city answers is a city he will work
+            # in, which makes three postings three chances at the same team
+            # rather than a duplicate to tidy away.
+            #
+            # So this is the one entry here that is an opportunity rather than
+            # a caution, and it is phrased as one.
+            # "also open in" should not list the city you are already reading.
+            here = (row.get("location") or "").strip()
+            others = sorted(loc for loc in locations if loc != here)
+            if others:
+                out.append(
+                    f"same role also open in {', '.join(others[:4])}"
+                    f"{' and more' if len(others) > 4 else ''} — "
+                    f"{len(copies)} separate postings you can each apply to")
         elif len(dates) >= REPOST_DATES:
             try:
                 real = sorted(d for d in dates if d)
@@ -136,7 +153,7 @@ def main(argv=None) -> int:
     import tracker
 
     ap = argparse.ArgumentParser(
-        description="Flag postings that may not be real vacancies.")
+        description="Signals worth knowing before applying: extra cities to apply to, and requisitions that keep being re-advertised.")
     ap.add_argument("--all", action="store_true",
                     help="include rows the shortlist already drops")
     args = ap.parse_args(argv)
@@ -159,8 +176,8 @@ def main(argv=None) -> int:
             print(f"      {s}")
 
     print()
-    print(f"{len(flagged)} of {len(rows)} rows carry a signal. Signals only — "
-          f"nothing here changes a score or drops a row.")
+    print(f"{len(flagged)} of {len(rows)} rows carry a signal. Nothing here "
+          f"changes a score, hides a row, or stops you applying.")
     return 0
 
 

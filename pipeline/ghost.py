@@ -1,0 +1,162 @@
+"""Signals that a posting may not be a real, fillable vacancy.
+
+Display only. Nothing here changes a score, and that is deliberate rather than
+cautious: `shortlist.score()`'s weights are frozen because there is no outcome
+data to tune them against, and a signal computed from the same data the ranker
+already sees would be tuning by the back door.
+
+These are also **signals, not accusations**. A long-open requisition is
+sometimes a real role with a slow panel, and a company that reposts monthly is
+sometimes a company that genuinely hires monthly. The output says what was
+observed and leaves the inference to him.
+
+The distinction that makes this worth having
+--------------------------------------------
+A naive duplicate count conflates two opposite things, and the real tracker has
+a clean example of each:
+
+- **Graphcore, "AI Research Engineer"** -- three Greenhouse ids, consecutive
+  (8632581002/2002/3002), *the same posted date*, and locations London, Bristol
+  and Cambridge. That is one job advertised three times, which is a listing
+  artifact. Applying to all three would be embarrassing.
+- **Faculty, "Machine Learning Engineer"** -- six Ashby ids with six *different*
+  posted dates spread from 2025-12 to 2026-07. That is the same role advertised
+  again and again over seven months, which is the evergreen/hard-to-fill/ghost
+  pattern.
+
+Both show up as "6 copies" to anything counting rows. The posted date separates
+them, and they call for opposite responses: collapse the first, be wary of the
+second.
+
+The 632 reposted title groups in the store are dominated by agencies -- Noir
+posting the same ".NET Developer" ad 90 times, ITOL Recruit 89 -- but those are
+already dropped by the agency filter. What survives every filter is 131 of 344
+rows, which is where this actually earns its place.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import re
+import sys
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from pipeline import shortlist  # noqa: E402
+
+#: Distinct posting dates before a role reads as repeatedly advertised. Two is
+#: a re-list, which is ordinary; three separate dates is a pattern. Stated as a
+#: judgement rather than a measurement -- there is no outcome data to fit it to,
+#: and pretending otherwise is how a guess acquires false authority.
+REPOST_DATES = 3
+
+#: Days the re-postings must span before they read as *repeated* advertising.
+#: Without it the signal fired on Archangel Lightworks -- three ids over three
+#: days, which is one hiring push churning through aggregator ids, not a role
+#: being re-advertised. Faculty's six postings span seven months, which is the
+#: pattern actually worth knowing about.
+REPOST_SPAN_DAYS = 30
+
+#: Days open before age is worth mentioning. `disqualify()` uses 30 as a
+#: *drop* threshold when asked; this is a higher bar for a remark, because
+#: mentioning something is much cheaper than binning it.
+LONG_OPEN_DAYS = 90
+
+
+def title_key(row: dict) -> tuple[str, str]:
+    """Company and title, normalised, as the grouping key."""
+    def norm(s: str) -> str:
+        return re.sub(r"[^a-z0-9 ]", "", (s or "").lower()).strip()
+    return (norm(row.get("company", "")), norm(row.get("title", "")))
+
+
+def index(rows: list[dict]) -> dict:
+    """Group rows by company and title so copies can be counted."""
+    out = defaultdict(list)
+    for row in rows:
+        out[title_key(row)].append(row)
+    return dict(out)
+
+
+def signals(row: dict, idx: dict) -> list[str]:
+    """Everything worth remarking on about this posting, or an empty list.
+
+    Empty is the common and correct answer. A signal generator that always
+    finds something teaches people to ignore it.
+    """
+    out: list[str] = []
+
+    copies = idx.get(title_key(row), [])
+    if len(copies) > 1:
+        dates = {(r.get("posted_date") or "").strip()[:10]
+                 for r in copies if (r.get("posted_date") or "").strip()}
+        locations = {(r.get("location") or "").strip()
+                     for r in copies if (r.get("location") or "").strip()}
+
+        if len(dates) <= 1 and len(locations) > 1:
+            # One role, listed per location. Graphcore's London/Bristol/
+            # Cambridge trio. Not a ghost signal -- a reason not to apply three
+            # times.
+            out.append(
+                f"listed in {len(locations)} locations under {len(copies)} ids "
+                f"({', '.join(sorted(locations)[:3])}) — one role, not "
+                f"{len(copies)}")
+        elif len(dates) >= REPOST_DATES:
+            try:
+                real = sorted(d for d in dates if d)
+                first = dt.date.fromisoformat(real[0])
+                last = dt.date.fromisoformat(real[-1])
+                span = (last - first).days
+            except (ValueError, IndexError):
+                span = None
+            if span is not None and span >= REPOST_SPAN_DAYS:
+                out.append(
+                    f"advertised {len(dates)} separate times over {span} days "
+                    f"— often an evergreen pipeline ad or a role that keeps "
+                    f"not being filled")
+
+    age = shortlist.age_days(row)
+    if age is not None and age >= LONG_OPEN_DAYS:
+        out.append(f"open {age} days")
+    return out
+
+
+def main(argv=None) -> int:
+    import argparse
+
+    import config
+    import tracker
+
+    ap = argparse.ArgumentParser(
+        description="Flag postings that may not be real vacancies.")
+    ap.add_argument("--all", action="store_true",
+                    help="include rows the shortlist already drops")
+    args = ap.parse_args(argv)
+
+    rows = list(tracker.load_tracker(str(ROOT / config.JOBS_XLSX)).values())
+    idx = index(rows)
+
+    if not args.all:
+        rows = [r for r in rows
+                if shortlist.disqualify(r) is None
+                and not shortlist.is_agency(r.get("company", ""))]
+
+    flagged = [(r, s) for r in rows if (s := signals(r, idx))]
+    flagged.sort(key=lambda p: (p[0].get("company", ""), p[0].get("title", "")))
+
+    for row, sigs in flagged:
+        print(f"{row.get('company','?')[:30]:<30} "
+              f"{(row.get('title') or '?')[:44]:<44} {row.get('id')}")
+        for s in sigs:
+            print(f"      {s}")
+
+    print()
+    print(f"{len(flagged)} of {len(rows)} rows carry a signal. Signals only — "
+          f"nothing here changes a score or drops a row.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

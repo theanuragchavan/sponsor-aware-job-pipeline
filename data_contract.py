@@ -55,6 +55,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "reconcile_audit.py",
     "config.py",
     "pipeline/shortlist.py",
+    "pipeline/explain.py",
     "pipeline/cv_gate.py",
     "pipeline/verify_claims.py",
     "pipeline/outcomes.py",

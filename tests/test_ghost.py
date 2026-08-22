@@ -127,6 +127,37 @@ def test_an_undateable_row_is_not_called_old():
     assert not any("open " in s for s in _sigs(rows))
 
 
+def test_age_can_be_suppressed_for_a_caller_that_already_reports_it():
+    """shortlist.py's score reasons already carry "386d old". Printing "open
+    386 days" underneath restates it, which is exactly the noise this module
+    warns about.
+    """
+    rows = [_row(posted_date="2020-01-01", date_first_seen="2020-01-01")]
+    idx = ghost.index(rows)
+    assert any("open " in s for s in ghost.signals(rows[0], idx))
+    assert ghost.signals(rows[0], idx, include_age=False) == []
+
+
+def test_suppressing_age_keeps_the_signals_the_caller_cannot_get_elsewhere():
+    """The repost and multi-location findings are the whole reason to call it
+    from the shortlist; only age is duplicated."""
+    rows = [_row(id="1", location="London, UK"),
+            _row(id="2", location="Bristol, UK"),
+            _row(id="3", location="Cambridge, UK")]
+    sigs = ghost.signals(rows[0], ghost.index(rows), include_age=False)
+    assert any("3 locations" in s for s in sigs), sigs
+
+
+def test_the_shortlist_asks_for_signals_without_age():
+    """Pins the pair, so re-enabling age in one place cannot silently restore
+    the duplication in the other."""
+    import inspect
+
+    from pipeline import shortlist as sl
+    src = inspect.getsource(sl.main)
+    assert "ghost.signals(row, ghost_index, include_age=False)" in src
+
+
 # --- the boundary the whole module rests on --------------------------------
 
 def test_nothing_here_changes_a_score_or_drops_a_row():

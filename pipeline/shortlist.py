@@ -413,6 +413,13 @@ def main() -> int:
 
     top = kept[: args.top]
 
+    # Imported here, not at module scope: ghost.py imports this module, so a
+    # top-level import would be circular. Indexed over every row rather than
+    # the shortlist, because the thing being counted is how many times a
+    # posting appears across the whole store.
+    from pipeline import ghost
+    ghost_index = ghost.index(rows)
+
     print(f"\nTracker: {len(rows)} rows → {len(kept)} candidates "
           f"→ showing top {len(top)}\n")
     if args.explain:
@@ -442,6 +449,13 @@ def main() -> int:
         if ruling:
             print(f"       ! PRIOR RESEARCH ({ruling.get('verified','?')}): "
                   f"{ruling.get('reason','')}")
+        # Display only, and deliberately after the score rather than inside it.
+        # A separate `ghost.py` command is one he would have to remember to run
+        # on the day he is about to apply, which is the day it matters; here it
+        # arrives beside the posting it is about. Nothing about it reaches
+        # score(), whose weights stay frozen for want of outcome data.
+        for signal in ghost.signals(row, ghost_index, include_age=False):
+            print(f"       ~ {signal}")
         print(f"       {row.get('redirect_url','')[:100]}")
         print()
 

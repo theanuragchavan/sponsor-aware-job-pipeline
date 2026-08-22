@@ -80,7 +80,7 @@ def index(rows: list[dict]) -> dict:
     return dict(out)
 
 
-def signals(row: dict, idx: dict) -> list[str]:
+def signals(row: dict, idx: dict, *, include_age: bool = True) -> list[str]:
     """Everything worth remarking on about this posting, or an empty list.
 
     Empty is the common and correct answer. A signal generator that always
@@ -117,9 +117,15 @@ def signals(row: dict, idx: dict) -> list[str]:
                     f"— often an evergreen pipeline ad or a role that keeps "
                     f"not being filled")
 
-    age = shortlist.age_days(row)
-    if age is not None and age >= LONG_OPEN_DAYS:
-        out.append(f"open {age} days")
+    # `include_age=False` for callers that already report it. shortlist.py's
+    # score reasons carry "386d old" of their own, and printing "open 386 days"
+    # underneath restates it -- which is the noise this module's own docstring
+    # warns about. The repost and multi-location signals are the ones the
+    # shortlist has no other way to know.
+    if include_age:
+        age = shortlist.age_days(row)
+        if age is not None and age >= LONG_OPEN_DAYS:
+            out.append(f"open {age} days")
     return out
 
 

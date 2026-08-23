@@ -108,6 +108,9 @@ SYSTEM_PATHS: tuple[str, ...] = (
     # Public form markup, same reasoning as JOB_SOURCES.md: it describes the
     # world rather than him.
     "ATS_FORMS.md",
+    # The contract the browser agent reads. No personal data: the answers it
+    # governs live in screening.yml, which is user-layer and gitignored.
+    "COWORK.md",
     "data_contract.py",
     "export.py",
     ".gitignore",

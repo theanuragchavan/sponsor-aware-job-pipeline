@@ -85,6 +85,11 @@ data/screening.yml
 packages/
 runs/
 data/indeed_raw.txt
+
+# Raw ApplyIQ daily summaries: every job Adzuna applied to on his
+# behalf, with salaries and its own commentary about his circumstances.
+data/applyiq_emails/
+data/applyiq_applications.json
 data/indeed_staging.csv
 data/indeed_raw_t*.txt
 run_indeed.bat

@@ -60,6 +60,7 @@ SYSTEM_PATHS: tuple[str, ...] = (
     "pipeline/ghost.py",
     "pipeline/connections.py",
     "pipeline/log_manual.py",
+    "pipeline/applyiq.py",
     "pipeline/cv_gate.py",
     "pipeline/verify_claims.py",
     "pipeline/outcomes.py",
@@ -142,6 +143,10 @@ USER_PATHS: tuple[str, ...] = (
     # What he applied to outside the pipeline, before it was recorded.
     # His own application history, and the input to a tracker write.
     "data/manual_applications.json",
+    # Raw daily summaries from Adzuna's auto-apply service, and the
+    # records parsed out of them. Both are his application history.
+    "data/applyiq_emails/",
+    "data/applyiq_applications.json",
     # His answers to form questions. Personal by definition -- salary
     # floor, visa status, location -- so it lives with the rest of the
     # personal data and is gitignored. It travels in a full export
@@ -195,6 +200,8 @@ PERSONAL_PATHS: tuple[str, ...] = (
     # of them agreed to be in a repo.
     "data/connections.json",
     "data/manual_applications.json",
+    "data/applyiq_emails/",
+    "data/applyiq_applications.json",
     "pipeline/decisions.json",
     "pipeline/profile.md",
     "pipeline/sponsor_review.md",

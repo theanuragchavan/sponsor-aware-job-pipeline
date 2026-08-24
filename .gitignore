@@ -27,6 +27,9 @@ run_tracker.bat
 
 # Personal working context, absolute paths, and status notes
 CLAUDE.md
+# Session-to-session state: companies applied to, outcomes, open obligations
+# and deadlines. Reads like documentation, is not.
+HANDOFF.md
 STATUS_*.md
 adzuna_tracker_brief.md
 compass_artifact_*.md

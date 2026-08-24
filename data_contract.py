@@ -123,6 +123,10 @@ SYSTEM_PATHS: tuple[str, ...] = (
 USER_PATHS: tuple[str, ...] = (
     # the constitution and the research behind it
     "CLAUDE.md",
+    # Session-to-session state: what is done, what is left, what he owes whom.
+    # Names companies, outcomes and deadlines, so it is his layer, not the
+    # tool's, even though it reads like documentation.
+    "HANDOFF.md",
     "adzuna_tracker_brief.md",
     "STATUS_adzuna_resume_2026-06-29.md",
     # the store, and the frozen snapshot that is not the store
@@ -192,6 +196,7 @@ USER_PATHS: tuple[str, ...] = (
 #: of git to satisfy a rule it never needed to obey.
 PERSONAL_PATHS: tuple[str, ...] = (
     "CLAUDE.md",
+    "HANDOFF.md",
     "jobs_tracker_beautified.xlsx",
     "jobs_tracker.csv",
     "data/screening.yml",

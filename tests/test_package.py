@@ -27,6 +27,10 @@ def _tree(root: Path):
     files = {
         "tracker.py": "# system\n",
         "pipeline/shortlist.py": "# system\n",
+        # A real file in the source tree, not something the exporter writes.
+        # See test_the_cowork_contract_is_copied_not_regenerated.
+        "COWORK.md": "# the contract\nNever compose an answer. result.json.\n"
+                     "He requires Skilled Worker sponsorship.\n",
         "CLAUDE.md": "# user, the constitution\n",
         "data/decision_log.jsonl": '{"seq": 1}\n',
         ".env": "ADZUNA_APP_KEY=super-secret-value\n",
@@ -51,7 +55,7 @@ def test_a_full_export_carries_both_layers():
         assert (dst / "tracker.py").exists()
         assert (dst / "CLAUDE.md").exists()
         assert (dst / "data/decision_log.jsonl").exists()
-        assert m["counts"] == {"system": 2, "user": 2}, m["counts"]
+        assert m["counts"] == {"system": 3, "user": 2}, m["counts"]
 
 
 def test_system_only_leaves_personal_data_behind():
@@ -73,15 +77,35 @@ def test_the_runtime_directories_exist_on_a_fresh_export():
             assert (dst / d).is_dir(), d
 
 
-def test_the_cowork_contract_ships_with_it():
-    """A fresh agent must find the rules without being told where they are."""
+def test_the_cowork_contract_is_copied_not_regenerated():
+    """A fresh agent must find the rules, and they must be *the* rules.
+
+    This exporter used to write its own summary of the contract over the copied
+    file. That made two sources of truth and the stale one won: when COWORK.md
+    gained the field-shape reporting the autosubmit gate depends on, and the
+    rule against upgrading a student visa to a Graduate Route one, the exported
+    copy had neither. Byte-identity is the assertion, not keyword presence --
+    keywords would have passed throughout.
+    """
     with tempfile.TemporaryDirectory() as tmp:
         src, dst = _tree(Path(tmp) / "src"), Path(tmp) / "out"
         package.build(src, dst)
-        text = (dst / "COWORK.md").read_text(encoding="utf-8")
-        assert "Never invent an answer to a form question" in text
-        assert "sponsorship" in text.lower()
-        assert "result.json" in text
+        shipped = (dst / "COWORK.md").read_text(encoding="utf-8")
+        assert shipped == (src / "COWORK.md").read_text(encoding="utf-8")
+        assert "sponsorship" in shipped.lower()
+        assert "result.json" in shipped
+
+
+def test_the_exporter_holds_no_second_copy_of_the_contract():
+    """The regression guard for the same bug, read off the source.
+
+    A future edit that reintroduces a contract string in this module would pass
+    the test above only if it happened to match, which is exactly the coincidence
+    that failed last time.
+    """
+    text = (Path(package.__file__)).read_text(encoding="utf-8")
+    assert "COWORK_CONTRACT" not in text, \
+        "export.py is carrying its own copy of the Cowork contract again"
 
 
 # --- what must never travel -----------------------------------------------
@@ -157,7 +181,7 @@ def test_dry_run_writes_nothing():
         src, dst = _tree(Path(tmp) / "src"), Path(tmp) / "out"
         code, m = package.build(src, dst, dry_run=True)
         assert code == package.EXIT_OK
-        assert m["counts"]["system"] == 2
+        assert m["counts"]["system"] == 3
         assert not dst.exists(), "dry run created the target"
 
 

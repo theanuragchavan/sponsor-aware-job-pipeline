@@ -70,50 +70,6 @@ EXIT_OK = 0
 EXIT_REFUSED = 1
 EXIT_CANNOT_BUILD = 2
 
-#: Written into the export so a fresh agent knows the rules before it acts.
-COWORK_CONTRACT = """# COWORK.md — the contract for this folder
-
-You are driving a browser on Anurag Chavan's behalf. Read this before acting.
-
-## What this folder is
-
-A self-contained job-application system. `system/` paths are the tool, `user/`
-paths are his data — the split is declared in `data_contract.py`, not by folder
-position. `packages/<job_id>/` holds one prepared application each.
-
-## The rules, in order of how badly breaking them hurts
-
-1. **Never invent an answer to a form question.** Every answer comes from
-   `answers.json` in the job's package, which is generated from a file he wrote
-   by hand. If a form asks something not in that file, STOP and leave it for
-   him. This matters most for work authorisation: he requires UK Skilled Worker
-   sponsorship, the honest answer sometimes loses the application, and an agent
-   optimising for "submitted successfully" has every incentive to pick the
-   other one. Do not.
-
-2. **Obey `gate.json`.** Each package carries a verdict with ten conditions. If
-   `autosubmit` is false, fill the form and stop at the review screen — do not
-   submit. The failing condition is named; surface it.
-
-3. **Never attach a CV that is not in the package.** The PDFs here are
-   content-attested by sha256. A file from anywhere else has not been checked
-   and around forty applications already went out on CVs whose text layer was
-   unreadable.
-
-4. **Always write `runs/<job_id>/result.json`**, whether you submitted, stopped,
-   or failed. That file is the only record of what happened, and it is what the
-   system learns from. A run with no result is worse than a run that failed.
-
-5. **One application per job, ever.** Check `runs/` before starting.
-
-## What you are not asked to judge
-
-Whether a job is worth applying to, what a cover letter should say, or whether
-a claim about him is true. All three are already decided upstream. Your job is
-the mechanical last mile.
-"""
-
-
 def sha256_of(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -197,7 +153,13 @@ def build(source: Path, target: Path, *, include_user: bool = True,
         for d in ("packages", "runs", "drafts", "logs"):
             (target / d).mkdir(parents=True, exist_ok=True)
 
-        (target / "COWORK.md").write_text(COWORK_CONTRACT, encoding="utf-8")
+        # COWORK.md is NOT written here. It is a real file in SYSTEM_PATHS and
+        # the ordinary copy carries it. This used to overwrite it with a
+        # summary held in this module, which meant the agent read a contract
+        # nobody was maintaining: on 2026-08-24 the repo's copy gained the
+        # field-shape reporting the gate now depends on and the rule against
+        # upgrading a student visa, and the exported copy had neither. Two
+        # sources of truth, and the stale one won every time.
         (target / ".env.example").write_text(
             "# Injected at runtime. The real .env is never exported.\n"
             "ADZUNA_APP_ID=\nADZUNA_APP_KEY=\nFIRECRAWL_API_KEY_1=\n",
@@ -291,7 +253,7 @@ def main(argv=None) -> int:
     print(f"source revision: {report['source_revision']}")
     if not args.dry_run:
         print(f"wrote {args.target}")
-        print("  + COWORK.md, .env.example, MANIFEST.json")
+        print("  + .env.example, MANIFEST.json")
         print("  + packages/ runs/ drafts/ logs/")
         print("\nSecrets were NOT copied. Inject .env at runtime.")
     return code

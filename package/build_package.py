@@ -91,18 +91,26 @@ def answers_for(questions: list[str], screening: dict) -> dict:
     """
     out: dict = {"resolved": {}, "unresolved": []}
     by_id = {a["id"]: a for a in screening.get("answers", [])}
-    for q in questions:
-        state, detail = gate.resolve_question(q, screening)
+    for raw in questions:
+        text, widget = gate.question_widget(raw)
+        state, detail, kind = gate.resolve_question(text, screening,
+                                                    widget=widget)
         if state == "answer":
             entry = by_id[detail]
-            out["resolved"][q] = {
+            out["resolved"][text] = {
                 "answer": entry.get("answer"),
                 "long": entry.get("long"),
                 "source_id": entry["id"],
+                # An answer nothing has matched to a field is carried as such.
+                # The gate refuses it; a person reading the package should see
+                # the same caveat the gate saw.
+                "match": kind,
+                "widget": widget,
             }
         else:
-            out["unresolved"].append({"question": q, "state": state,
-                                      "reason": detail})
+            out["unresolved"].append({"question": text, "state": state,
+                                      "reason": detail, "match": kind,
+                                      "widget": widget})
     return out
 
 

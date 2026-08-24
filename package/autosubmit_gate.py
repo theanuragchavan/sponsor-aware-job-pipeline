@@ -30,6 +30,25 @@ Condition 8 is the load-bearing one. Every answer comes from `data/screening.yml
 which is transcribed by hand. An agent optimising for "submit successfully" has
 a real incentive to answer the sponsorship question the way that gets through.
 A lookup table has no incentive.
+
+A lookup table also has no semantics, which is the failure this file was
+found to have on 2026-08-24. `resolve_question` matched a phrase anywhere in
+the question and returned the first entry that hit, so *"Do you have the right
+to work in the UK **without requiring sponsorship**?"* -- a yes/no field whose
+truthful answer is No -- resolved to the right-to-work paragraph and passed.
+The table was honest; the matcher was not reading. Three guards now stand
+between a hit and an answer, and any of them failing means the question is
+unresolved and a person answers it:
+
+  ambiguity  more than one entry matched, so which one is a guess
+  veto       an entry's own `not_if` phrase appears, e.g. "without sponsorship"
+  fit        the answer's declared `type` must suit the field's widget
+
+The third is only checkable because a widget's *shape* is observable on a form
+nobody recorded -- a two-radio group is a two-radio group on every Workday
+tenant. See `ATS_FORMS.md`. A caller that does not say what the widget is gets
+its answer, flagged `widget_unknown`, and condition 8 refuses it: an answer
+that has never been matched to a field is not a fit, it is an assumption.
 """
 from __future__ import annotations
 
@@ -54,6 +73,25 @@ RECORDED_ATS: tuple[str, ...] = ()
 #: look like spray-and-pray to a recruiter, and the whole system is built on
 #: the opposite premise.
 DAILY_CAP = 3
+
+#: Field shapes a recorded session can name without knowing the employer.
+#: Named for what the DOM shows, never for what the question means -- a form
+#: filler classifies Workday and Greenhouse by widget structure with no
+#: per-tenant string, which is what makes the shape knowable on the employer's
+#: own questions page. `ATS_FORMS.md` records the xpaths.
+WIDGET_TYPES: tuple[str, ...] = (
+    "boolean_radio", "boolean_checkbox", "single_select", "multi_select",
+    "text", "textarea", "date", "file",
+)
+
+#: Which answer type may be typed into which widget. A paragraph offered to a
+#: two-option radio is not a near miss, it is a different answer: whatever the
+#: filler picks, the file did not say to pick it.
+ANSWER_FITS: dict[str, tuple[str, ...]] = {
+    "boolean_yes": ("boolean_radio", "boolean_checkbox", "single_select"),
+    "boolean_no": ("boolean_radio", "boolean_checkbox", "single_select"),
+    "text": ("text", "textarea"),
+}
 
 
 def ok(rule: str, detail: str = "") -> dict:
@@ -99,8 +137,41 @@ def load_screening(path: Path) -> dict:
         return {}
 
 
-def resolve_question(question: str, screening: dict) -> tuple[str, str]:
-    """('answer'|'needs_input'|'never_auto'|'unknown', detail).
+def parse_question(arg: str) -> dict:
+    """`--question "Do you require sponsorship?::boolean_radio"`.
+
+    A widget name that is not one of `WIDGET_TYPES` is refused rather than
+    ignored: a typo that silently became "widget unobserved" would look like
+    caution and behave like it, right up until someone corrected the typo.
+    """
+    text, _, widget = arg.partition("::")
+    widget = widget.strip()
+    if widget and widget not in WIDGET_TYPES:
+        import argparse
+        raise argparse.ArgumentTypeError(
+            f"unknown widget {widget!r}; one of {', '.join(WIDGET_TYPES)}")
+    return {"question": text.strip(), "widget": widget or None}
+
+
+def question_widget(q) -> tuple[str, str | None]:
+    """Split a question into its text and the widget it is rendered as.
+
+    Accepts a bare string, which means the widget was never observed, and
+    `{"question": ..., "widget": ...}`, which means it was.
+    """
+    if isinstance(q, dict):
+        return str(q.get("question", "")), (q.get("widget") or None)
+    return str(q), None
+
+
+def resolve_question(question: str, screening: dict,
+                     *, widget: str | None = None) -> tuple[str, str, str]:
+    """('answer'|'needs_input'|'never_auto'|'unknown', detail, match_kind).
+
+    `match_kind` says how the answer was arrived at, and only "exact" means a
+    single un-vetoed entry whose type suits the field. The others -- ambiguous,
+    vetoed, type_mismatch, type_unknown, widget_unknown -- are the reasons a
+    person has to answer this one, and each is reported rather than absorbed.
 
     Unknown is the common case early on and it is not a problem: it stops the
     submission and you answer by hand, and that answer joins the file. The
@@ -108,19 +179,54 @@ def resolve_question(question: str, screening: dict) -> tuple[str, str]:
     """
     q = re.sub(r"\s+", " ", (question or "").strip().lower())
     if not q:
-        return "unknown", "empty question"
+        return "unknown", "empty question", "none"
 
     for phrase in screening.get("never_auto", []):
         if phrase in q:
-            return "never_auto", f"matches never_auto: {phrase!r}"
+            return "never_auto", f"matches never_auto: {phrase!r}", "exact"
 
+    hits: list[dict] = []
+    vetoed: list[tuple[str, str]] = []
     for entry in screening.get("answers", []):
-        for m in entry.get("matches", []):
-            if m in q:
-                if entry.get("needs_input"):
-                    return "needs_input", entry.get("needs_input_reason", "")
-                return "answer", entry["id"]
-    return "unknown", "no canonical answer on file"
+        if not any(m in q for m in entry.get("matches", [])):
+            continue
+        veto = next((v for v in entry.get("not_if", []) if v in q), None)
+        if veto:
+            vetoed.append((entry["id"], veto))
+        else:
+            hits.append(entry)
+
+    # Two entries matching is not a tie to be broken. It means the question
+    # asks something the file describes twice, and picking by file order is
+    # picking by accident.
+    if len(hits) > 1:
+        return ("unknown", "matches more than one answer: "
+                + ", ".join(e["id"] for e in hits), "ambiguous")
+    if not hits:
+        if vetoed:
+            eid, phrase = vetoed[0]
+            return ("unknown",
+                    f"{eid} matched but {phrase!r} vetoes it", "vetoed")
+        return "unknown", "no canonical answer on file", "none"
+
+    entry = hits[0]
+    if entry.get("needs_input"):
+        return "needs_input", entry.get("needs_input_reason", ""), "exact"
+
+    declared = entry.get("type", "")
+    if widget is None:
+        # The answer is genuinely on file; nothing has checked it against a
+        # field. Callers building a package for a person to read want it.
+        # Condition 8 does not.
+        return "answer", entry["id"], "widget_unknown"
+    fits = ANSWER_FITS.get(declared)
+    if fits is None:
+        return ("unknown", f"{entry['id']} declares no usable type "
+                f"({declared or 'none'})", "type_unknown")
+    if widget not in fits:
+        return ("unknown", f"{entry['id']} is {declared}, "
+                f"the field is a {widget}", "type_mismatch")
+    return "answer", entry["id"], "exact"
 
 
 def evaluate(job: dict, *, draft: Path | None = None, cv_ref: str = "",
@@ -195,23 +301,34 @@ def evaluate(job: dict, *, draft: Path | None = None, cv_ref: str = "",
     else:
         c.append(no("letter_grounded", "no draft supplied"))
 
-    # 8. every question resolves to something written down
-    unresolved = [(q, why) for q in questions
-                  for state, why in [resolve_question(q, screening)]
-                  if state in ("unknown", "needs_input")]
+    # 8. every question resolves to something written down, and the thing
+    #    written down fits the field it would be typed into
+    asked = []
+    for raw in questions:
+        text, widget = question_widget(raw)
+        state, why, kind = resolve_question(text, screening, widget=widget)
+        asked.append({"q": text, "widget": widget, "state": state,
+                      "why": why, "kind": kind})
+
+    unresolved = [a for a in asked
+                  if a["state"] != "answer" or a["kind"] != "exact"]
     if not screening:
         c.append(no("answers_on_file", "no screening.yml, or it is unreadable"))
     elif unresolved:
-        c.append(no("answers_on_file",
-                    "; ".join(f"{q[:48]!r}: {why}" for q, why in unresolved[:3])))
+        c.append(no("answers_on_file", "; ".join(
+            f"{a['q'][:48]!r}: {a['why'] or a['state']} [{a['kind']}]"
+            for a in unresolved[:3])))
     else:
         c.append(ok("answers_on_file", f"{len(questions)} question(s)"))
 
     # 9. no free prose. Unsupervised writing about an employer is where
     #    fabrication enters, and the grounding gate cannot check text that does
-    #    not exist yet.
-    free_text = [q for q in questions
-                 if resolve_question(q, screening)[0] == "never_auto"]
+    #    not exist yet. Two ways to be free prose: the question is on the
+    #    never-auto list, or the field is a textarea nothing on file answers.
+    #    The second is only detectable because a widget's shape is observable.
+    free_text = [a["q"] for a in asked
+                 if a["state"] == "never_auto"
+                 or (a["widget"] == "textarea" and a["state"] != "answer")]
     c.append(ok("no_free_text") if not free_text
              else no("no_free_text", f"{len(free_text)} open question(s): "
                                      f"{free_text[0][:60]!r}"))
@@ -249,7 +366,10 @@ def main(argv=None) -> int:
     ap.add_argument("--draft")
     ap.add_argument("--cv", default="")
     ap.add_argument("--question", action="append", default=[],
-                    help="a form question; repeatable")
+                    type=parse_question,
+                    help="a form question as TEXT or TEXT::WIDGET; repeatable. "
+                         "Without a widget the gate cannot confirm the answer "
+                         f"fits the field. Widgets: {', '.join(WIDGET_TYPES)}")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
 

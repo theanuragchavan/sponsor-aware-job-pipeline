@@ -59,10 +59,23 @@ runs/<job_id>/result.json
 - Upload `cv.pdf` and `cover_letter.pdf` as given. Never regenerate, rename, or
   re-export them.
 - Answer every question from `answers.json`, matched on the question text.
+- **Report the field's shape with every question you send back for checking**,
+  as one of: `boolean_radio`, `boolean_checkbox`, `single_select`,
+  `multi_select`, `text`, `textarea`, `date`, `file`. You can always tell —
+  count the radios, look for the textarea — and you do not need to know the
+  employer to do it. Without it the gate cannot confirm the stored answer even
+  fits the field, so it refuses. Guess at your peril: name the shape you can
+  see, and if you cannot see one, say so and stop.
 - **A question with no match in `answers.json` stops the run.** Write a
   `stopped` result, quote the question verbatim in `unanswered`, and move on to
   the next package. That question then gets added to `screening.yml` by hand,
   which is how the whitelist widens without anyone loosening a rule.
+- **A near match is not a match.** `answers.json` marks how each answer was
+  arrived at. Anything other than `exact` is a stop, and that includes an
+  answer that reads like it obviously fits. Two wordings that differ by one
+  word — "do you require sponsorship" and "do you have the right to work
+  *without* sponsorship" — want opposite answers, which is exactly why you are
+  not the one deciding.
 - Free-text boxes -- "why do you want to work here", "tell us about yourself",
   "anything else" -- always stop the run, even when a package is otherwise clear
   to submit. Prose about a specific employer is where fabrication enters and it

@@ -82,13 +82,21 @@ no type check. Probed against the live file on 2026-08-24, that answers
 *"Do you have the right to work in the UK without requiring sponsorship?"* —
 a yes/no radio whose truthful answer is **No** — with the `type: text`
 right-to-work paragraph, and condition 8 **passes**. It answers a US
-work-authorisation question with that same UK paragraph. Both are latent rather than live, because
-`RECORDED_ATS` is empty and condition 1 fails first; they arm themselves the
-moment a session is recorded.
+work-authorisation question with that same UK paragraph. Both were latent rather than live, because
+`RECORDED_ATS` is empty and condition 1 fails first; they would have armed
+themselves the moment a session was recorded.
 
-Fix, when it is taken: filter on type the way this repo does, return a match
-kind alongside the answer, and let condition 8 pass only on an exact match of
-compatible type.
+**Fixed the same day.** `resolve_question` now returns a match kind alongside
+the answer and takes the widget it would be typed into. Three guards, any of
+which means a person answers the question: more than one entry matched
+(`ambiguous`), an entry's own `not_if` phrase appears (`vetoed` — "without
+sponsorship" is written down, because substring matching cannot see a
+negation), or the declared type does not suit the widget (`type_mismatch`).
+A caller that names no widget gets `widget_unknown`, which condition 8 also
+refuses: an answer never matched to a field is an assumption, not a fit.
+Condition 9 gained the second free-prose test this survey made possible — a
+`textarea` that nothing on file answers is an open box whatever it is worded
+like. Regression tests in `tests/test_autosubmit_gate.py`.
 
 ### The four fixed pages
 
